@@ -4,6 +4,18 @@ metadata:
   labels:
     app.kubernetes.io/name: dbchan
     app.kubernetes.io/managed-by: kustomize
-  name: user-sample
+  name: myapp-user
 spec:
-  # TODO(user): Add fields here
+  username: "myapp"
+  password: "cGFzc3dvcmQxMjM="  # base64 encoded password
+  datastoreRef:
+    name: "mydatabase"  # references the datastore
+  databaseRef:  # optional, for database-specific user
+    name: "myapp-db"
+  roles:
+    - "readonly"
+  privileges:
+    - "SELECT"
+    - "INSERT"
+    - "UPDATE"
+  host: "%"  # allow from any host
