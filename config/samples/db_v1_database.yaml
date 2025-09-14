@@ -4,6 +4,9 @@ metadata:
   labels:
     app.kubernetes.io/name: dbchan
     app.kubernetes.io/managed-by: kustomize
-  name: database-sample
+  name: myapp-db  # This becomes the database name
 spec:
-  # TODO(user): Add fields here
+  datastoreRef:
+    name: "mydatabase"  # references the datastore
+  charset: "utf8mb4"  # optional, for MySQL/MariaDB
+  collation: "utf8mb4_unicode_ci"  # optional, for MySQL/MariaDB/PostgreSQL
