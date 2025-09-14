@@ -111,21 +111,60 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		}
 	}
 
-	// Get the datastore
+	// Get the datastore (support cross-namespace references)
 	datastore := &dbv1.Datastore{}
 	datastoreKey := client.ObjectKey{
-		Namespace: req.Namespace,
+		Namespace: req.Namespace, // Default to same namespace
 		Name:      user.Spec.DatastoreRef.Name,
 	}
+
+	// Try to get datastore from same namespace first
 	if err := r.Get(ctx, datastoreKey, datastore); err != nil {
-		user.Status.Phase = "Failed"
-		user.Status.Ready = false
-		user.Status.Message = fmt.Sprintf("Datastore %s not found", user.Spec.DatastoreRef.Name)
-		if err := r.Status().Update(ctx, user); err != nil {
-			logger.Error(err, "Failed to update user status")
-			return ctrl.Result{}, err
+		// If not found in same namespace, try to find it in any namespace
+		if errors.IsNotFound(err) {
+			// List all datastores to find the one with matching name
+			datastoreList := &dbv1.DatastoreList{}
+			if listErr := r.List(ctx, datastoreList); listErr != nil {
+				user.Status.Phase = "Failed"
+				user.Status.Ready = false
+				user.Status.Message = fmt.Sprintf("Failed to list datastores: %v", listErr)
+				if err := r.Status().Update(ctx, user); err != nil {
+					logger.Error(err, "Failed to update user status")
+					return ctrl.Result{}, err
+				}
+				return ctrl.Result{}, listErr
+			}
+
+			// Find datastore by name across all namespaces
+			found := false
+			for _, ds := range datastoreList.Items {
+				if ds.Name == user.Spec.DatastoreRef.Name {
+					datastore = &ds
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				user.Status.Phase = "Failed"
+				user.Status.Ready = false
+				user.Status.Message = fmt.Sprintf("Datastore %s not found in any namespace", user.Spec.DatastoreRef.Name)
+				if err := r.Status().Update(ctx, user); err != nil {
+					logger.Error(err, "Failed to update user status")
+					return ctrl.Result{}, err
+				}
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+		} else {
+			user.Status.Phase = "Failed"
+			user.Status.Ready = false
+			user.Status.Message = fmt.Sprintf("Datastore %s not found", user.Spec.DatastoreRef.Name)
+			if err := r.Status().Update(ctx, user); err != nil {
+				logger.Error(err, "Failed to update user status")
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
-		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
 	// Check if datastore is ready
@@ -140,23 +179,62 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
-	// Get database if specified
+	// Get database if specified (support cross-namespace references)
 	var database *dbv1.Database
 	if user.Spec.DatabaseRef != nil {
 		database = &dbv1.Database{}
 		databaseKey := client.ObjectKey{
-			Namespace: req.Namespace,
+			Namespace: req.Namespace, // Default to same namespace
 			Name:      user.Spec.DatabaseRef.Name,
 		}
+
+		// Try to get database from same namespace first
 		if err := r.Get(ctx, databaseKey, database); err != nil {
-			user.Status.Phase = "Failed"
-			user.Status.Ready = false
-			user.Status.Message = fmt.Sprintf("Database %s not found", user.Spec.DatabaseRef.Name)
-			if err := r.Status().Update(ctx, user); err != nil {
-				logger.Error(err, "Failed to update user status")
-				return ctrl.Result{}, err
+			// If not found in same namespace, try to find it in any namespace
+			if errors.IsNotFound(err) {
+				// List all databases to find the one with matching name
+				databaseList := &dbv1.DatabaseList{}
+				if listErr := r.List(ctx, databaseList); listErr != nil {
+					user.Status.Phase = "Failed"
+					user.Status.Ready = false
+					user.Status.Message = fmt.Sprintf("Failed to list databases: %v", listErr)
+					if err := r.Status().Update(ctx, user); err != nil {
+						logger.Error(err, "Failed to update user status")
+						return ctrl.Result{}, err
+					}
+					return ctrl.Result{}, listErr
+				}
+
+				// Find database by name across all namespaces
+				found := false
+				for _, db := range databaseList.Items {
+					if db.Name == user.Spec.DatabaseRef.Name {
+						database = &db
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					user.Status.Phase = "Failed"
+					user.Status.Ready = false
+					user.Status.Message = fmt.Sprintf("Database %s not found in any namespace", user.Spec.DatabaseRef.Name)
+					if err := r.Status().Update(ctx, user); err != nil {
+						logger.Error(err, "Failed to update user status")
+						return ctrl.Result{}, err
+					}
+					return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+				}
+			} else {
+				user.Status.Phase = "Failed"
+				user.Status.Ready = false
+				user.Status.Message = fmt.Sprintf("Database %s not found", user.Spec.DatabaseRef.Name)
+				if err := r.Status().Update(ctx, user); err != nil {
+					logger.Error(err, "Failed to update user status")
+					return ctrl.Result{}, err
+				}
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 			}
-			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 	}
 

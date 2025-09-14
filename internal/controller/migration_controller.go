@@ -120,21 +120,60 @@ func (r *MigrationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	// Get the database
+	// Get the database (support cross-namespace references)
 	database := &dbv1.Database{}
 	databaseKey := client.ObjectKey{
-		Namespace: req.Namespace,
+		Namespace: req.Namespace, // Default to same namespace
 		Name:      migration.Spec.DatabaseRef.Name,
 	}
+
+	// Try to get database from same namespace first
 	if err := r.Get(ctx, databaseKey, database); err != nil {
-		migration.Status.Phase = "Failed"
-		migration.Status.Applied = false
-		migration.Status.Message = fmt.Sprintf("Database %s not found", migration.Spec.DatabaseRef.Name)
-		if err := r.Status().Update(ctx, migration); err != nil {
-			logger.Error(err, "Failed to update migration status")
-			return ctrl.Result{}, err
+		// If not found in same namespace, try to find it in any namespace
+		if errors.IsNotFound(err) {
+			// List all databases to find the one with matching name
+			databaseList := &dbv1.DatabaseList{}
+			if listErr := r.List(ctx, databaseList); listErr != nil {
+				migration.Status.Phase = "Failed"
+				migration.Status.Applied = false
+				migration.Status.Message = fmt.Sprintf("Failed to list databases: %v", listErr)
+				if err := r.Status().Update(ctx, migration); err != nil {
+					logger.Error(err, "Failed to update migration status")
+					return ctrl.Result{}, err
+				}
+				return ctrl.Result{}, listErr
+			}
+
+			// Find database by name across all namespaces
+			found := false
+			for _, db := range databaseList.Items {
+				if db.Name == migration.Spec.DatabaseRef.Name {
+					database = &db
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				migration.Status.Phase = "Failed"
+				migration.Status.Applied = false
+				migration.Status.Message = fmt.Sprintf("Database %s not found in any namespace", migration.Spec.DatabaseRef.Name)
+				if err := r.Status().Update(ctx, migration); err != nil {
+					logger.Error(err, "Failed to update migration status")
+					return ctrl.Result{}, err
+				}
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+		} else {
+			migration.Status.Phase = "Failed"
+			migration.Status.Applied = false
+			migration.Status.Message = fmt.Sprintf("Database %s not found", migration.Spec.DatabaseRef.Name)
+			if err := r.Status().Update(ctx, migration); err != nil {
+				logger.Error(err, "Failed to update migration status")
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
-		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
 	// Check if database is ready

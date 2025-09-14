@@ -186,14 +186,51 @@ func (r *DatastoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	// Get the secret containing database credentials
+	// Get the secret containing database credentials (support cross-namespace references)
 	secret := &corev1.Secret{}
 	secretKey := client.ObjectKey{
-		Namespace: req.Namespace,
+		Namespace: req.Namespace, // Default to same namespace
 		Name:      datastore.Spec.SecretRef.Name,
 	}
+
+	// Try to get secret from same namespace first
 	if err := r.Get(ctx, secretKey, secret); err != nil {
+		// If not found in same namespace, try to find it in any namespace
 		if errors.IsNotFound(err) {
+			// List all secrets to find the one with matching name
+			secretList := &corev1.SecretList{}
+			if listErr := r.List(ctx, secretList); listErr != nil {
+				datastore.Status.Phase = "Failed"
+				datastore.Status.Ready = false
+				datastore.Status.Message = fmt.Sprintf("Failed to list secrets: %v", listErr)
+				if err := r.Status().Update(ctx, datastore); err != nil {
+					logger.Error(err, "Failed to update datastore status")
+					return ctrl.Result{}, err
+				}
+				return ctrl.Result{}, listErr
+			}
+
+			// Find secret by name across all namespaces
+			found := false
+			for _, s := range secretList.Items {
+				if s.Name == datastore.Spec.SecretRef.Name {
+					secret = &s
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				datastore.Status.Phase = "Failed"
+				datastore.Status.Ready = false
+				datastore.Status.Message = fmt.Sprintf("Secret %s not found in any namespace", datastore.Spec.SecretRef.Name)
+				if err := r.Status().Update(ctx, datastore); err != nil {
+					logger.Error(err, "Failed to update datastore status")
+					return ctrl.Result{}, err
+				}
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+		} else {
 			datastore.Status.Phase = "Failed"
 			datastore.Status.Ready = false
 			datastore.Status.Message = fmt.Sprintf("Secret %s not found", datastore.Spec.SecretRef.Name)
@@ -203,8 +240,6 @@ func (r *DatastoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			}
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
-		logger.Error(err, "Failed to get secret")
-		return ctrl.Result{}, err
 	}
 
 	// Get default key names if not specified

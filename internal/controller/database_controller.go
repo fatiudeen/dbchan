@@ -108,21 +108,60 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		}
 	}
 
-	// Get the datastore
+	// Get the datastore (support cross-namespace references)
 	datastore := &dbv1.Datastore{}
 	datastoreKey := client.ObjectKey{
-		Namespace: req.Namespace,
+		Namespace: req.Namespace, // Default to same namespace
 		Name:      database.Spec.DatastoreRef.Name,
 	}
+
+	// Try to get datastore from same namespace first
 	if err := r.Get(ctx, datastoreKey, datastore); err != nil {
-		database.Status.Phase = "Failed"
-		database.Status.Ready = false
-		database.Status.Message = fmt.Sprintf("Datastore %s not found", database.Spec.DatastoreRef.Name)
-		if err := r.Status().Update(ctx, database); err != nil {
-			logger.Error(err, "Failed to update database status")
-			return ctrl.Result{}, err
+		// If not found in same namespace, try to find it in any namespace
+		if errors.IsNotFound(err) {
+			// List all datastores to find the one with matching name
+			datastoreList := &dbv1.DatastoreList{}
+			if listErr := r.List(ctx, datastoreList); listErr != nil {
+				database.Status.Phase = "Failed"
+				database.Status.Ready = false
+				database.Status.Message = fmt.Sprintf("Failed to list datastores: %v", listErr)
+				if err := r.Status().Update(ctx, database); err != nil {
+					logger.Error(err, "Failed to update database status")
+					return ctrl.Result{}, err
+				}
+				return ctrl.Result{}, listErr
+			}
+
+			// Find datastore by name across all namespaces
+			found := false
+			for _, ds := range datastoreList.Items {
+				if ds.Name == database.Spec.DatastoreRef.Name {
+					datastore = &ds
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				database.Status.Phase = "Failed"
+				database.Status.Ready = false
+				database.Status.Message = fmt.Sprintf("Datastore %s not found in any namespace", database.Spec.DatastoreRef.Name)
+				if err := r.Status().Update(ctx, database); err != nil {
+					logger.Error(err, "Failed to update database status")
+					return ctrl.Result{}, err
+				}
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+		} else {
+			database.Status.Phase = "Failed"
+			database.Status.Ready = false
+			database.Status.Message = fmt.Sprintf("Datastore %s not found", database.Spec.DatastoreRef.Name)
+			if err := r.Status().Update(ctx, database); err != nil {
+				logger.Error(err, "Failed to update database status")
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
-		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
 	// Check if datastore is ready

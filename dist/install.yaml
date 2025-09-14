@@ -1,0 +1,886 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: dbchan
+    control-plane: controller-manager
+  name: dbchan-system
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.15.0
+  name: databases.db.fatiudeen.dev
+spec:
+  group: db.fatiudeen.dev
+  names:
+    kind: Database
+    listKind: DatabaseList
+    plural: databases
+    singular: database
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: Database is the Schema for the databases API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: DatabaseSpec defines the desired state of Database
+            properties:
+              charset:
+                description: Charset defines the character set for the database
+                type: string
+              collation:
+                description: Collation defines the collation for the database
+                type: string
+              databaseName:
+                description: DatabaseName is the name of the logical database
+                type: string
+              datastoreRef:
+                description: DatastoreRef references the datastore where this database
+                  should be created
+                properties:
+                  name:
+                    description: |-
+                      Name of the referent.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
+            required:
+            - databaseName
+            - datastoreRef
+            type: object
+          status:
+            description: DatabaseStatus defines the observed state of Database
+            properties:
+              createdAt:
+                description: CreatedAt indicates when the database was created
+                format: date-time
+                type: string
+              message:
+                description: Message provides additional information about the current
+                  state
+                type: string
+              phase:
+                description: Phase represents the current phase of the database
+                type: string
+              ready:
+                description: Ready indicates whether the database is ready for use
+                type: boolean
+            required:
+            - ready
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.15.0
+  name: datastores.db.fatiudeen.dev
+spec:
+  group: db.fatiudeen.dev
+  names:
+    kind: Datastore
+    listKind: DatastoreList
+    plural: datastores
+    singular: datastore
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: Datastore is the Schema for the datastores API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: DatastoreSpec defines the desired state of Datastore
+            properties:
+              datastoreType:
+                description: DatastoreType specifies the type of database (mysql,
+                  postgres, sqlserver)
+                type: string
+              secretRef:
+                description: SecretRef references a secret containing database credentials
+                properties:
+                  hostKey:
+                    description: 'HostKey is the key in the secret containing the
+                      host (default: "host")'
+                    type: string
+                  instanceKey:
+                    description: 'InstanceKey is the key in the secret containing
+                      the instance (default: "instance", for SQL Server)'
+                    type: string
+                  name:
+                    description: Name is the name of the secret
+                    type: string
+                  passwordKey:
+                    description: 'PasswordKey is the key in the secret containing
+                      the password (default: "password")'
+                    type: string
+                  portKey:
+                    description: 'PortKey is the key in the secret containing the
+                      port (default: "port")'
+                    type: string
+                  sslModeKey:
+                    description: 'SSLModeKey is the key in the secret containing the
+                      SSL mode (default: "sslmode", for PostgreSQL)'
+                    type: string
+                  usernameKey:
+                    description: 'UsernameKey is the key in the secret containing
+                      the username (default: "username")'
+                    type: string
+                required:
+                - name
+                type: object
+            required:
+            - datastoreType
+            - secretRef
+            type: object
+          status:
+            description: DatastoreStatus defines the observed state of Datastore
+            properties:
+              message:
+                description: Message provides additional information about the current
+                  state
+                type: string
+              phase:
+                description: Phase represents the current phase of the datastore
+                type: string
+              ready:
+                description: Ready indicates whether the datastore is ready for use
+                type: boolean
+            required:
+            - ready
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.15.0
+  name: migrations.db.fatiudeen.dev
+spec:
+  group: db.fatiudeen.dev
+  names:
+    kind: Migration
+    listKind: MigrationList
+    plural: migrations
+    singular: migration
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: Migration is the Schema for the migrations API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: MigrationSpec defines the desired state of Migration
+            properties:
+              databaseRef:
+                description: DatabaseRef references the database where this migration
+                  should be applied
+                properties:
+                  name:
+                    description: |-
+                      Name of the referent.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
+              description:
+                description: Description provides a human-readable description of
+                  what this migration does
+                type: string
+              rollbackSql:
+                description: RollbackSQL contains the SQL script to rollback this
+                  migration (optional)
+                type: string
+              sql:
+                description: SQL contains the SQL script to be executed
+                type: string
+              version:
+                description: Version is a unique identifier for this migration (e.g.,
+                  "001", "20240101_001")
+                type: string
+            required:
+            - databaseRef
+            - sql
+            - version
+            type: object
+          status:
+            description: MigrationStatus defines the observed state of Migration
+            properties:
+              applied:
+                description: Applied indicates whether the migration has been successfully
+                  applied
+                type: boolean
+              appliedAt:
+                description: AppliedAt indicates when the migration was applied
+                format: date-time
+                type: string
+              checksum:
+                description: Checksum stores the hash of the SQL content to detect
+                  changes
+                type: string
+              message:
+                description: Message provides additional information about the current
+                  state
+                type: string
+              phase:
+                description: Phase represents the current phase of the migration
+                type: string
+            required:
+            - applied
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.15.0
+  name: users.db.fatiudeen.dev
+spec:
+  group: db.fatiudeen.dev
+  names:
+    kind: User
+    listKind: UserList
+    plural: users
+    singular: user
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: User is the Schema for the users API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: UserSpec defines the desired state of User
+            properties:
+              databaseRef:
+                description: DatabaseRef references the specific database (optional,
+                  for database-specific users)
+                properties:
+                  name:
+                    description: |-
+                      Name of the referent.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
+              datastoreRef:
+                description: DatastoreRef references the datastore where this user
+                  should be created
+                properties:
+                  name:
+                    description: |-
+                      Name of the referent.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
+              host:
+                description: Host specifies the host from which the user can connect
+                  (e.g., "localhost", "%")
+                type: string
+              password:
+                description: Password is the base64-encoded password for the user
+                type: string
+              privileges:
+                description: Privileges defines specific database privileges for this
+                  user
+                items:
+                  type: string
+                type: array
+              roles:
+                description: Roles defines the database roles/permissions for this
+                  user
+                items:
+                  type: string
+                type: array
+              username:
+                description: Username is the name of the database user/role
+                type: string
+            required:
+            - datastoreRef
+            - password
+            - username
+            type: object
+          status:
+            description: UserStatus defines the observed state of User
+            properties:
+              created:
+                description: Created indicates whether the user has been created in
+                  the database
+                type: boolean
+              createdAt:
+                description: CreatedAt indicates when the user was created
+                format: date-time
+                type: string
+              message:
+                description: Message provides additional information about the current
+                  state
+                type: string
+              phase:
+                description: Phase represents the current phase of the user
+                type: string
+              ready:
+                description: Ready indicates whether the user is ready for use
+                type: boolean
+            required:
+            - created
+            - ready
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: dbchan
+  name: dbchan-controller-manager
+  namespace: dbchan-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: dbchan
+  name: dbchan-leader-election-role
+  namespace: dbchan-system
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: dbchan
+  name: dbchan-database-editor-role
+rules:
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - databases
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - databases/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: dbchan
+  name: dbchan-database-viewer-role
+rules:
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - databases
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - databases/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: dbchan
+  name: dbchan-datastore-editor-role
+rules:
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - datastores
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - datastores/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: dbchan
+  name: dbchan-datastore-viewer-role
+rules:
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - datastores
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - datastores/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dbchan-manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - databases
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - databases/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - databases/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - datastores
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - datastores/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - datastores/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - migrations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - migrations/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - migrations/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - users
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - users/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - users/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: dbchan
+  name: dbchan-migration-editor-role
+rules:
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - migrations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - migrations/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: dbchan
+  name: dbchan-migration-viewer-role
+rules:
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - migrations
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - migrations/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: dbchan
+  name: dbchan-user-editor-role
+rules:
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - users
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - users/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: dbchan
+  name: dbchan-user-viewer-role
+rules:
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - users
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - users/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: dbchan
+  name: dbchan-leader-election-rolebinding
+  namespace: dbchan-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: dbchan-leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: dbchan-controller-manager
+  namespace: dbchan-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: dbchan
+  name: dbchan-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: dbchan-manager-role
+subjects:
+- kind: ServiceAccount
+  name: dbchan-controller-manager
+  namespace: dbchan-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: dbchan
+    control-plane: controller-manager
+  name: dbchan-controller-manager
+  namespace: dbchan-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        control-plane: controller-manager
+    spec:
+      containers:
+      - args:
+        - --leader-elect
+        - --health-probe-bind-address=:8081
+        command:
+        - /manager
+        image: controller:latest
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: manager
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      securityContext:
+        runAsNonRoot: true
+      serviceAccountName: dbchan-controller-manager
+      terminationGracePeriodSeconds: 10
