@@ -4,6 +4,18 @@ metadata:
   labels:
     app.kubernetes.io/name: dbchan
     app.kubernetes.io/managed-by: kustomize
-  name: migration-sample
+  name: migration-001-create-users-table
 spec:
-  # TODO(user): Add fields here
+  version: "001"
+  description: "Create users table"
+  databaseRef:
+    name: "myapp-db"  # references the database
+  sql: |
+    CREATE TABLE users (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      username VARCHAR(255) NOT NULL UNIQUE,
+      email VARCHAR(255) NOT NULL UNIQUE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  rollbackSql: |
+    DROP TABLE IF EXISTS users;
