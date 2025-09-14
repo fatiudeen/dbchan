@@ -837,7 +837,7 @@ metadata:
   name: dbchan-controller-manager
   namespace: dbchan-system
 spec:
-  replicas: ${{ .Values.replicas }}
+  replicas: {{ .Values.replicas }}
   selector:
     matchLabels:
       control-plane: controller-manager
