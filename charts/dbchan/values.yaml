@@ -1,6 +1,6 @@
-replicas: 1
+replicas: "1"
 
 image:
-  repository: controller
-  tag: latest
+  repository: fatiudeen/dbchan
+  tag: v1
   pullPolicy: IfNotPresent
