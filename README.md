@@ -12,7 +12,8 @@ dbchan is a comprehensive Kubernetes operator that provides declarative manageme
 - **Declarative Management**: Define database resources as Kubernetes resources
 - **Migration Management**: Version-controlled SQL migrations with rollback support
 - **User Management**: Database user and role management
-- **Secret Integration**: Secure credential management using Kubernetes Secrets
+- **Secret Integration**: Secure password management using Kubernetes Secrets
+- **Simplified Configuration**: Connection details specified directly in spec for easier management
 - **Status Tracking**: Comprehensive status reporting for all resources
 - **Finalizer Support**: Proper cleanup of external resources
 
@@ -118,15 +119,14 @@ metadata:
   name: my-postgres-server  # This becomes the datastore name
 spec:
   datastoreType: "postgres"  # mysql, mariadb, postgres, postgresql, sqlserver, mssql
+  host: "postgres.example.com"  # Database host address
+  port: 5432                   # Optional, defaults based on datastore type
+  username: "postgres"         # Database username
   secretRef:
     name: "postgres-credentials"
-    # Optional: specify custom secret keys (defaults shown)
-    usernameKey: "username"     # default: "username"
-    passwordKey: "password"     # default: "password"
-    hostKey: "host"             # default: "host"
-    portKey: "port"             # default: "port"
-    sslModeKey: "sslmode"       # default: "sslmode" (PostgreSQL only)
-    instanceKey: "instance"     # default: "instance" (SQL Server only)
+    passwordKey: "password"    # Optional, defaults to "password"
+  sslMode: "disable"           # Optional, defaults to "disable" (PostgreSQL only)
+  instance: "SQLEXPRESS"       # Optional, for SQL Server only
 ```
 
 #### Status
@@ -147,18 +147,20 @@ metadata:
   name: postgres-credentials
 type: Opaque
 data:
-  username: cG9zdGdyZXM=  # base64 encoded
-  password: cGFzc3dvcmQ=  # base64 encoded
-  host: bG9jYWxob3N0     # base64 encoded
-  port: NTQzMg==         # base64 encoded (5432)
-  sslmode: ZGlzYWJsZQ==  # base64 encoded (disable)
+  password: cGFzc3dvcmQxMjM=  # base64 encoded password only
 ```
 
 #### Usage
 
-1. **Create a secret** with database credentials
-2. **Create a Datastore** resource pointing to the secret
+1. **Create a secret** with only the database password
+2. **Create a Datastore** resource with connection details and secret reference
 3. **Monitor status** - the controller will attempt to connect and update the status
+
+#### Default Ports
+
+- **MySQL/MariaDB**: 3306
+- **PostgreSQL**: 5432  
+- **SQL Server**: 1433
 
 ### 2. Database
 
@@ -347,11 +349,7 @@ metadata:
   name: postgres-credentials
 type: Opaque
 data:
-  username: cG9zdGdyZXM=
-  password: cGFzc3dvcmQxMjM=
-  host: bG9jYWxob3N0
-  port: NTQzMg==
-  sslmode: ZGlzYWJsZQ==
+  password: cGFzc3dvcmQxMjM=  # base64 encoded password
 ```
 
 ### 2. Create Datastore
@@ -363,8 +361,12 @@ metadata:
   name: postgres-server
 spec:
   datastoreType: "postgres"
+  host: "postgres.example.com"
+  port: 5432
+  username: "postgres"
   secretRef:
     name: "postgres-credentials"
+  sslMode: "disable"
 ```
 
 ### 3. Create Database
@@ -460,9 +462,10 @@ kubectl describe migration migration-001-create-users-table
 ### Common Issues
 
 1. **Datastore Connection Failed**
-   - Check secret credentials
-   - Verify network connectivity
-   - Check datastore type spelling
+   - Check secret contains only password
+   - Verify host, port, and username in spec
+   - Check network connectivity
+   - Verify datastore type spelling
 
 2. **Database Creation Failed**
    - Ensure datastore is ready

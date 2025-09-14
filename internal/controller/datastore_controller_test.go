@@ -167,14 +167,14 @@ var _ = Describe("Datastore Controller", func() {
 				},
 				Spec: dbv1.DatastoreSpec{
 					DatastoreType: "postgres",
+					Host:          "localhost",
+					Port:          5432,
+					Username:      "postgres",
 					SecretRef: dbv1.DatastoreSecretRef{
 						Name:        secretName,
-						UsernameKey: "db_user",
 						PasswordKey: "db_password",
-						HostKey:     "db_host",
-						PortKey:     "db_port",
-						SSLModeKey:  "db_ssl",
 					},
+					SSLMode: "disable",
 				},
 			}
 			Expect(k8sClient.Create(ctx, datastore)).To(Succeed())
@@ -310,33 +310,18 @@ var _ = Describe("Datastore Controller", func() {
 
 	Context("When testing connection string building", func() {
 		It("should build correct connection strings for different database types", func() {
-			secretData := map[string][]byte{
-				"username": []byte("testuser"),
-				"password": []byte("testpass"),
-				"host":     []byte("localhost"),
-				"port":     []byte("5432"),
-				"sslmode":  []byte("disable"),
-			}
-
-			secretRef := dbv1.DatastoreSecretRef{
-				Name: "test-secret",
-			}
 
 			By("Testing PostgreSQL connection string")
-			connStr := buildConnectionString("postgres", "testdb", "testuser", secretRef, secretData)
+			connStr := buildConnectionString("postgres", "testdb", "localhost", "testuser", "testpass", 5432, "disable", "")
 			Expect(connStr).To(ContainSubstring("postgres://testuser:testpass@localhost:5432/testdb"))
 
 			By("Testing MySQL connection string")
-			secretData["port"] = []byte("3306")
-			connStr = buildConnectionString("mysql", "testdb", "testuser", secretRef, secretData)
+			connStr = buildConnectionString("mysql", "testdb", "localhost", "testuser", "testpass", 3306, "", "")
 			Expect(connStr).To(ContainSubstring("testuser:testpass@tcp(localhost:3306)/testdb"))
 
 			By("Testing SQL Server connection string")
-			secretData["port"] = []byte("1433")
-			secretData["instance"] = []byte("SQLEXPRESS")
-			secretRef.InstanceKey = "instance"
-			connStr = buildConnectionString("sqlserver", "testdb", "testuser", secretRef, secretData)
-			Expect(connStr).To(ContainSubstring("sqlserver://testuser:testpass@localhost:1433SQLEXPRESS?database=testdb"))
+			connStr = buildConnectionString("sqlserver", "testdb", "localhost", "testuser", "testpass", 1433, "", "SQLEXPRESS")
+			Expect(connStr).To(ContainSubstring("sqlserver://testuser:testpass@localhost:1433/SQLEXPRESS?database=testdb"))
 		})
 	})
 })

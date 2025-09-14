@@ -28,32 +28,32 @@ type DatastoreSpec struct {
 	// DatastoreType specifies the type of database (mysql, postgres, sqlserver)
 	DatastoreType string `json:"datastoreType"`
 
-	// SecretRef references a secret containing database credentials
+	// Host is the database host address
+	Host string `json:"host"`
+
+	// Port is the database port (defaults will be set based on datastore type)
+	Port int32 `json:"port,omitempty"`
+
+	// Username is the database username
+	Username string `json:"username"`
+
+	// SecretRef references a secret containing only the database password
 	SecretRef DatastoreSecretRef `json:"secretRef"`
+
+	// SSLMode is the SSL mode for PostgreSQL connections (default: "disable")
+	SSLMode string `json:"sslMode,omitempty"`
+
+	// Instance is the SQL Server instance name (optional)
+	Instance string `json:"instance,omitempty"`
 }
 
-// DatastoreSecretRef defines the secret reference for datastore credentials
+// DatastoreSecretRef defines the secret reference for datastore password
 type DatastoreSecretRef struct {
 	// Name is the name of the secret
 	Name string `json:"name"`
 
-	// UsernameKey is the key in the secret containing the username (default: "username")
-	UsernameKey string `json:"usernameKey,omitempty"`
-
 	// PasswordKey is the key in the secret containing the password (default: "password")
 	PasswordKey string `json:"passwordKey,omitempty"`
-
-	// HostKey is the key in the secret containing the host (default: "host")
-	HostKey string `json:"hostKey,omitempty"`
-
-	// PortKey is the key in the secret containing the port (default: "port")
-	PortKey string `json:"portKey,omitempty"`
-
-	// SSLModeKey is the key in the secret containing the SSL mode (default: "sslmode", for PostgreSQL)
-	SSLModeKey string `json:"sslModeKey,omitempty"`
-
-	// InstanceKey is the key in the secret containing the instance (default: "instance", for SQL Server)
-	InstanceKey string `json:"instanceKey,omitempty"`
 }
 
 // DatastoreStatus defines the observed state of Datastore

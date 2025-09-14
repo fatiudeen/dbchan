@@ -7,6 +7,11 @@ metadata:
   name: mydatabase  # This becomes the datastore name
 spec:
   datastoreType: "postgres"  # or "mysql", "mariadb", "sqlserver"
+  host: "postgres.example.com"
+  port: 5432  # Optional, defaults will be set based on datastore type
+  username: "postgres"
   secretRef:
     name: "db-credentials"
-    # All keys use defaults: usernameKey="username", passwordKey="password", hostKey="host", portKey="port", sslModeKey="sslmode"
+    passwordKey: "password"  # Optional, defaults to "password"
+  sslMode: "disable"  # Optional, defaults to "disable" for PostgreSQL
+  # instance: "SQLEXPRESS"  # Optional, for SQL Server

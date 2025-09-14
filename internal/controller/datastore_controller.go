@@ -35,6 +35,15 @@ import (
 	dbv1 "github.com/fatiudeen/dbchan/api/v1"
 )
 
+// getSecretKeys returns a slice of all keys in the secret data
+func getSecretKeys(data map[string][]byte) []string {
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 // DatastoreReconciler reconciles a Datastore object
 type DatastoreReconciler struct {
 	client.Client
@@ -47,77 +56,36 @@ type DatastoreReconciler struct {
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 
 // buildConnectionString constructs a database connection string based on the datastore type, name and credentials
-func buildConnectionString(datastoreType, datastoreName, username string, secretRef dbv1.DatastoreSecretRef, secretData map[string][]byte) string {
-	// Get default key names if not specified
-	passwordKey := secretRef.PasswordKey
-	if passwordKey == "" {
-		passwordKey = "password"
-	}
-
-	hostKey := secretRef.HostKey
-	if hostKey == "" {
-		hostKey = "host"
-	}
-
-	password, ok := secretData[passwordKey]
-	if !ok {
-		return fmt.Sprintf("%s@%s", username, datastoreName)
-	}
-
-	host, ok := secretData[hostKey]
-	if !ok {
-		return fmt.Sprintf("%s@%s", username, datastoreName)
-	}
-
+func buildConnectionString(datastoreType, datastoreName, host, username, password string, port int32, sslMode, instance string) string {
 	switch datastoreType {
 	case "mysql", "mariadb":
-		port := "3306"
-		portKey := secretRef.PortKey
-		if portKey == "" {
-			portKey = "port"
+		// Set default port if not specified
+		if port == 0 {
+			port = 3306
 		}
-		if p, ok := secretData[portKey]; ok {
-			port = string(p)
-		}
-		return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", username, string(password), string(host), port, datastoreName)
+		return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true", username, password, host, port, datastoreName)
 
 	case "postgres", "postgresql":
-		port := "5432"
-		portKey := secretRef.PortKey
-		if portKey == "" {
-			portKey = "port"
+		// Set default port if not specified
+		if port == 0 {
+			port = 5432
 		}
-		if p, ok := secretData[portKey]; ok {
-			port = string(p)
+		// Set default SSL mode if not specified
+		if sslMode == "" {
+			sslMode = "disable"
 		}
-		sslmode := "disable"
-		sslModeKey := secretRef.SSLModeKey
-		if sslModeKey == "" {
-			sslModeKey = "sslmode"
-		}
-		if ssl, ok := secretData[sslModeKey]; ok {
-			sslmode = string(ssl)
-		}
-		return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s", username, string(password), string(host), port, datastoreName, sslmode)
+		return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s", username, password, host, port, datastoreName, sslMode)
 
 	case "sqlserver", "mssql":
-		port := "1433"
-		portKey := secretRef.PortKey
-		if portKey == "" {
-			portKey = "port"
+		// Set default port if not specified
+		if port == 0 {
+			port = 1433
 		}
-		if p, ok := secretData[portKey]; ok {
-			port = string(p)
+		instancePath := ""
+		if instance != "" {
+			instancePath = "/" + instance
 		}
-		instance := ""
-		instanceKey := secretRef.InstanceKey
-		if instanceKey == "" {
-			instanceKey = "instance"
-		}
-		if inst, ok := secretData[instanceKey]; ok {
-			instance = string(inst)
-		}
-		return fmt.Sprintf("sqlserver://%s:%s@%s:%s%s?database=%s", username, string(password), string(host), port, instance, datastoreName)
+		return fmt.Sprintf("sqlserver://%s:%s@%s:%d%s?database=%s", username, password, host, port, instancePath, datastoreName)
 
 	default:
 		// Fallback to a generic connection string format
@@ -163,6 +131,7 @@ func testConnection(ctx context.Context, datastoreType, connectionString string)
 // move the current state of the cluster closer to the desired state.
 func (r *DatastoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
+	logger.Info("Starting reconciliation", "datastore", req.NamespacedName)
 
 	// Fetch the Datastore instance
 	datastore := &dbv1.Datastore{}
@@ -193,10 +162,13 @@ func (r *DatastoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		Name:      datastore.Spec.SecretRef.Name,
 	}
 
+	logger.Info("Looking for secret", "secret", datastore.Spec.SecretRef.Name, "namespace", req.Namespace)
+
 	// Try to get secret from same namespace first
 	if err := r.Get(ctx, secretKey, secret); err != nil {
 		// If not found in same namespace, try to find it in any namespace
 		if errors.IsNotFound(err) {
+			logger.Info("Secret not found in same namespace, searching all namespaces")
 			// List all secrets to find the one with matching name
 			secretList := &corev1.SecretList{}
 			if listErr := r.List(ctx, secretList); listErr != nil {
@@ -212,10 +184,14 @@ func (r *DatastoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 			// Find secret by name across all namespaces
 			found := false
+			logger.Info("Found secrets", "count", len(secretList.Items))
 			for _, s := range secretList.Items {
+				logger.V(1).Info("Checking secret", "name", s.Name, "namespace", s.Namespace)
 				if s.Name == datastore.Spec.SecretRef.Name {
 					secret = &s
+					secretKey.Namespace = s.Namespace
 					found = true
+					logger.Info("Found secret in different namespace", "secret", s.Name, "namespace", s.Namespace)
 					break
 				}
 			}
@@ -231,6 +207,7 @@ func (r *DatastoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 			}
 		} else {
+			logger.Error(err, "Failed to get secret from same namespace")
 			datastore.Status.Phase = "Failed"
 			datastore.Status.Ready = false
 			datastore.Status.Message = fmt.Sprintf("Secret %s not found", datastore.Spec.SecretRef.Name)
@@ -242,28 +219,36 @@ func (r *DatastoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	// Get default key names if not specified
-	usernameKey := datastore.Spec.SecretRef.UsernameKey
-	if usernameKey == "" {
-		usernameKey = "username"
+	// Get password from secret
+	passwordKey := datastore.Spec.SecretRef.PasswordKey
+	if passwordKey == "" {
+		passwordKey = "password"
 	}
+	logger.Info("Using password key", "key", passwordKey)
 
-	// Extract credentials from secret
-	username, ok := secret.Data[usernameKey]
+	// Extract password from secret
+	password, ok := secret.Data[passwordKey]
 	if !ok {
+		logger.Error(nil, "Password key not found in secret", "key", passwordKey, "available_keys", getSecretKeys(secret.Data))
 		datastore.Status.Phase = "Failed"
 		datastore.Status.Ready = false
-		datastore.Status.Message = fmt.Sprintf("Key %s not found in secret", usernameKey)
+		datastore.Status.Message = fmt.Sprintf("Key %s not found in secret", passwordKey)
 		if err := r.Status().Update(ctx, datastore); err != nil {
 			logger.Error(err, "Failed to update datastore status")
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
+	logger.Info("Found password in secret")
 
 	// Try to connect to the database
-	connectionString := buildConnectionString(datastore.Spec.DatastoreType, datastore.Name, string(username), datastore.Spec.SecretRef, secret.Data)
+	logger.Info("Building connection string", "datastore_type", datastore.Spec.DatastoreType, "datastore_name", datastore.Name, "host", datastore.Spec.Host, "username", datastore.Spec.Username)
+	connectionString := buildConnectionString(datastore.Spec.DatastoreType, datastore.Name, datastore.Spec.Host, datastore.Spec.Username, string(password), datastore.Spec.Port, datastore.Spec.SSLMode, datastore.Spec.Instance)
+	logger.V(1).Info("Connection string built", "connection_string", connectionString)
+
+	logger.Info("Testing database connection")
 	if err := testConnection(ctx, datastore.Spec.DatastoreType, connectionString); err != nil {
+		logger.Error(err, "Database connection failed")
 		datastore.Status.Phase = "Failed"
 		datastore.Status.Ready = false
 		datastore.Status.Message = fmt.Sprintf("Connection failed: %v", err)
@@ -275,15 +260,18 @@ func (r *DatastoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// Connection successful
+	logger.Info("Database connection successful")
 	datastore.Status.Phase = "Ready"
 	datastore.Status.Ready = true
 	datastore.Status.Message = "Successfully connected to database"
+
+	logger.Info("Updating datastore status to Ready")
 	if err := r.Status().Update(ctx, datastore); err != nil {
 		logger.Error(err, "Failed to update datastore status")
 		return ctrl.Result{}, err
 	}
 
-	logger.Info("Datastore connection validated successfully")
+	logger.Info("Datastore reconciliation completed successfully")
 	return ctrl.Result{}, nil
 }
 

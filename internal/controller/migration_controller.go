@@ -61,6 +61,7 @@ type MigrationReconciler struct {
 // move the current state of the cluster closer to the desired state.
 func (r *MigrationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
+	logger.Info("Starting migration reconciliation", "migration", req.NamespacedName)
 
 	// Fetch the Migration instance
 	migration := &dbv1.Migration{}

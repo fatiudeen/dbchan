@@ -43,17 +43,21 @@ spec:
                 description: DatastoreType specifies the type of database (mysql,
                   postgres, sqlserver)
                 type: string
+              host:
+                description: Host is the database host address
+                type: string
+              instance:
+                description: Instance is the SQL Server instance name (optional)
+                type: string
+              port:
+                description: Port is the database port (defaults will be set based
+                  on datastore type)
+                format: int32
+                type: integer
               secretRef:
-                description: SecretRef references a secret containing database credentials
+                description: SecretRef references a secret containing only the database
+                  password
                 properties:
-                  hostKey:
-                    description: 'HostKey is the key in the secret containing the
-                      host (default: "host")'
-                    type: string
-                  instanceKey:
-                    description: 'InstanceKey is the key in the secret containing
-                      the instance (default: "instance", for SQL Server)'
-                    type: string
                   name:
                     description: Name is the name of the secret
                     type: string
@@ -61,24 +65,21 @@ spec:
                     description: 'PasswordKey is the key in the secret containing
                       the password (default: "password")'
                     type: string
-                  portKey:
-                    description: 'PortKey is the key in the secret containing the
-                      port (default: "port")'
-                    type: string
-                  sslModeKey:
-                    description: 'SSLModeKey is the key in the secret containing the
-                      SSL mode (default: "sslmode", for PostgreSQL)'
-                    type: string
-                  usernameKey:
-                    description: 'UsernameKey is the key in the secret containing
-                      the username (default: "username")'
-                    type: string
                 required:
                 - name
                 type: object
+              sslMode:
+                description: 'SSLMode is the SSL mode for PostgreSQL connections (default:
+                  "disable")'
+                type: string
+              username:
+                description: Username is the database username
+                type: string
             required:
             - datastoreType
+            - host
             - secretRef
+            - username
             type: object
           status:
             description: DatastoreStatus defines the observed state of Datastore

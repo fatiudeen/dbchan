@@ -57,6 +57,7 @@ type DatabaseReconciler struct {
 // move the current state of the cluster closer to the desired state.
 func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
+	logger.Info("Starting database reconciliation", "database", req.NamespacedName)
 
 	// Fetch the Database instance
 	database := &dbv1.Database{}
@@ -71,7 +72,9 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 	// Check if the Database is being deleted
 	if database.DeletionTimestamp != nil {
+		logger.Info("Database is being deleted", "database", database.Name)
 		if controllerutil.ContainsFinalizer(database, databaseFinalizer) {
+			logger.Info("Performing database cleanup")
 			// Perform cleanup
 			if err := r.cleanupDatabase(ctx, database); err != nil {
 				logger.Error(err, "Failed to cleanup database")
@@ -79,22 +82,26 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 			}
 
 			// Remove finalizer
+			logger.Info("Removing finalizer from database")
 			controllerutil.RemoveFinalizer(database, databaseFinalizer)
 			if err := r.Update(ctx, database); err != nil {
 				logger.Error(err, "Failed to remove finalizer")
 				return ctrl.Result{}, err
 			}
+			logger.Info("Database cleanup completed")
 		}
 		return ctrl.Result{}, nil
 	}
 
 	// Add finalizer if not present
 	if !controllerutil.ContainsFinalizer(database, databaseFinalizer) {
+		logger.Info("Adding finalizer to database")
 		controllerutil.AddFinalizer(database, databaseFinalizer)
 		if err := r.Update(ctx, database); err != nil {
 			logger.Error(err, "Failed to add finalizer")
 			return ctrl.Result{}, err
 		}
+		logger.Info("Finalizer added to database")
 	}
 
 	// Initialize status if not set
