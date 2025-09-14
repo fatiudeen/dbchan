@@ -837,7 +837,7 @@ metadata:
   name: dbchan-controller-manager
   namespace: dbchan-system
 spec:
-  replicas: 1
+  replicas: ${{ .Values.replicas }}
   selector:
     matchLabels:
       control-plane: controller-manager
@@ -854,7 +854,7 @@ spec:
         - --health-probe-bind-address=:8081
         command:
         - /manager
-        image: controller:latest
+        image: fatiudeen/dbchan:v1
         livenessProbe:
           httpGet:
             path: /healthz
