@@ -39,9 +39,6 @@ spec:
           spec:
             description: DatastoreSpec defines the desired state of Datastore
             properties:
-              datastoreName:
-                description: DatastoreName is the name of the database/datastore
-                type: string
               datastoreType:
                 description: DatastoreType specifies the type of database (mysql,
                   postgres, sqlserver)
@@ -49,25 +46,37 @@ spec:
               secretRef:
                 description: SecretRef references a secret containing database credentials
                 properties:
-                  key:
-                    description: The key of the secret to select from.  Must be a
-                      valid secret key.
+                  hostKey:
+                    description: 'HostKey is the key in the secret containing the
+                      host (default: "host")'
+                    type: string
+                  instanceKey:
+                    description: 'InstanceKey is the key in the secret containing
+                      the instance (default: "instance", for SQL Server)'
                     type: string
                   name:
-                    description: |-
-                      Name of the referent.
-                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                      TODO: Add other useful fields. apiVersion, kind, uid?
+                    description: Name is the name of the secret
                     type: string
-                  optional:
-                    description: Specify whether the Secret or its key must be defined
-                    type: boolean
+                  passwordKey:
+                    description: 'PasswordKey is the key in the secret containing
+                      the password (default: "password")'
+                    type: string
+                  portKey:
+                    description: 'PortKey is the key in the secret containing the
+                      port (default: "port")'
+                    type: string
+                  sslModeKey:
+                    description: 'SSLModeKey is the key in the secret containing the
+                      SSL mode (default: "sslmode", for PostgreSQL)'
+                    type: string
+                  usernameKey:
+                    description: 'UsernameKey is the key in the secret containing
+                      the username (default: "username")'
+                    type: string
                 required:
-                - key
+                - name
                 type: object
-                x-kubernetes-map-type: atomic
             required:
-            - datastoreName
             - datastoreType
             - secretRef
             type: object
