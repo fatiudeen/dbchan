@@ -1,0 +1,23 @@
+# permissions for end users to view datastores.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: dbchan
+    app.kubernetes.io/managed-by: kustomize
+  name: datastore-viewer-role
+rules:
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - datastores
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - datastores/status
+  verbs:
+  - get

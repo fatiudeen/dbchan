@@ -1,0 +1,9 @@
+apiVersion: db.fatiudeen.dev/v1
+kind: Datastore
+metadata:
+  labels:
+    app.kubernetes.io/name: dbchan
+    app.kubernetes.io/managed-by: kustomize
+  name: datastore-sample
+spec:
+  # TODO(user): Add fields here

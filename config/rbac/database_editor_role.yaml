@@ -1,0 +1,27 @@
+# permissions for end users to edit databases.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: dbchan
+    app.kubernetes.io/managed-by: kustomize
+  name: database-editor-role
+rules:
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - databases
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - databases/status
+  verbs:
+  - get
