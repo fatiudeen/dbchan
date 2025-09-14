@@ -4,6 +4,9 @@ metadata:
   labels:
     app.kubernetes.io/name: dbchan
     app.kubernetes.io/managed-by: kustomize
-  name: datastore-sample
+  name: mydatabase  # This becomes the datastore name
 spec:
-  # TODO(user): Add fields here
+  datastoreType: "postgres"  # or "mysql", "mariadb", "sqlserver"
+  secretRef:
+    name: "db-credentials"
+    # All keys use defaults: usernameKey="username", passwordKey="password", hostKey="host", portKey="port", sslModeKey="sslmode"

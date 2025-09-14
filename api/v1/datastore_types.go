@@ -17,7 +17,6 @@ limitations under the License.
 package v1
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -26,11 +25,35 @@ import (
 
 // DatastoreSpec defines the desired state of Datastore
 type DatastoreSpec struct {
-	// DatastoreName is the name of the database/datastore
-	DatastoreName string `json:"datastoreName"`
+	// DatastoreType specifies the type of database (mysql, postgres, sqlserver)
+	DatastoreType string `json:"datastoreType"`
 
 	// SecretRef references a secret containing database credentials
-	SecretRef corev1.SecretKeySelector `json:"secretRef"`
+	SecretRef DatastoreSecretRef `json:"secretRef"`
+}
+
+// DatastoreSecretRef defines the secret reference for datastore credentials
+type DatastoreSecretRef struct {
+	// Name is the name of the secret
+	Name string `json:"name"`
+
+	// UsernameKey is the key in the secret containing the username (default: "username")
+	UsernameKey string `json:"usernameKey,omitempty"`
+
+	// PasswordKey is the key in the secret containing the password (default: "password")
+	PasswordKey string `json:"passwordKey,omitempty"`
+
+	// HostKey is the key in the secret containing the host (default: "host")
+	HostKey string `json:"hostKey,omitempty"`
+
+	// PortKey is the key in the secret containing the port (default: "port")
+	PortKey string `json:"portKey,omitempty"`
+
+	// SSLModeKey is the key in the secret containing the SSL mode (default: "sslmode", for PostgreSQL)
+	SSLModeKey string `json:"sslModeKey,omitempty"`
+
+	// InstanceKey is the key in the secret containing the instance (default: "instance", for SQL Server)
+	InstanceKey string `json:"instanceKey,omitempty"`
 }
 
 // DatastoreStatus defines the observed state of Datastore

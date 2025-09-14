@@ -1,0 +1,122 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.15.0
+  name: users.db.fatiudeen.dev
+spec:
+  group: db.fatiudeen.dev
+  names:
+    kind: User
+    listKind: UserList
+    plural: users
+    singular: user
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: User is the Schema for the users API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: UserSpec defines the desired state of User
+            properties:
+              databaseRef:
+                description: DatabaseRef references the specific database (optional,
+                  for database-specific users)
+                properties:
+                  name:
+                    description: |-
+                      Name of the referent.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
+              datastoreRef:
+                description: DatastoreRef references the datastore where this user
+                  should be created
+                properties:
+                  name:
+                    description: |-
+                      Name of the referent.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
+              host:
+                description: Host specifies the host from which the user can connect
+                  (e.g., "localhost", "%")
+                type: string
+              password:
+                description: Password is the base64-encoded password for the user
+                type: string
+              privileges:
+                description: Privileges defines specific database privileges for this
+                  user
+                items:
+                  type: string
+                type: array
+              roles:
+                description: Roles defines the database roles/permissions for this
+                  user
+                items:
+                  type: string
+                type: array
+              username:
+                description: Username is the name of the database user/role
+                type: string
+            required:
+            - datastoreRef
+            - password
+            - username
+            type: object
+          status:
+            description: UserStatus defines the observed state of User
+            properties:
+              created:
+                description: Created indicates whether the user has been created in
+                  the database
+                type: boolean
+              createdAt:
+                description: CreatedAt indicates when the user was created
+                format: date-time
+                type: string
+              message:
+                description: Message provides additional information about the current
+                  state
+                type: string
+              phase:
+                description: Phase represents the current phase of the user
+                type: string
+              ready:
+                description: Ready indicates whether the user is ready for use
+                type: boolean
+            required:
+            - created
+            - ready
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
