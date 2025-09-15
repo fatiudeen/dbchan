@@ -36,6 +36,7 @@ import (
 
 	dbv1 "github.com/fatiudeen/dbchan/api/v1"
 	"github.com/fatiudeen/dbchan/internal/controller"
+	webhookpkg "github.com/fatiudeen/dbchan/internal/webhook"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -149,6 +150,13 @@ func main() {
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Datastore")
+		os.Exit(1)
+	}
+	if err = (&webhookpkg.DatastoreWebhook{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("webhook").WithName("datastore"),
+	}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "Datastore")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
