@@ -159,6 +159,20 @@ func main() {
 		setupLog.Error(err, "unable to create webhook", "webhook", "Datastore")
 		os.Exit(1)
 	}
+	if err = (&webhookpkg.DatabaseWebhook{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("webhook").WithName("database"),
+	}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "Database")
+		os.Exit(1)
+	}
+	if err = (&webhookpkg.UserWebhook{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("webhook").WithName("user"),
+	}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "User")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

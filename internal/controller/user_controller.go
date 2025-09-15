@@ -449,7 +449,7 @@ func (r *UserReconciler) createOrUpdateMySQLUser(ctx context.Context, db *sql.DB
 	if database != nil {
 		// Database-specific privileges
 		for _, privilege := range user.Spec.Privileges {
-			grantSQL := fmt.Sprintf("GRANT %s ON %s.* TO '%s'@'%s'",
+			grantSQL := fmt.Sprintf("GRANT %s ON `%s`.* TO '%s'@'%s'",
 				privilege, database.Name, user.Spec.Username, user.Spec.Host)
 			if _, err := db.ExecContext(ctx, grantSQL); err != nil {
 				return fmt.Errorf("failed to grant privilege %s: %v", privilege, err)
@@ -498,7 +498,7 @@ func (r *UserReconciler) createOrUpdatePostgreSQLUser(ctx context.Context, db *s
 	if database != nil {
 		// Database-specific privileges
 		for _, privilege := range user.Spec.Privileges {
-			grantSQL := fmt.Sprintf("GRANT %s ON DATABASE %s TO %s",
+			grantSQL := fmt.Sprintf("GRANT %s ON DATABASE \"%s\" TO %s",
 				privilege, database.Name, user.Spec.Username)
 			if _, err := db.ExecContext(ctx, grantSQL); err != nil {
 				return fmt.Errorf("failed to grant privilege %s: %v", privilege, err)
