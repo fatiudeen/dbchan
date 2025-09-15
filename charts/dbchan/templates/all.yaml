@@ -856,7 +856,7 @@ spec:
         - --zap-log-level=debug
         command:
         - /manager
-        image: controller:latest
+        image: fatiudeen/dbchan:v2
         livenessProbe:
           httpGet:
             path: /healthz
