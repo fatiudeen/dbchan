@@ -25,8 +25,10 @@ spec:
     metadata:
       annotations:
         kubectl.kubernetes.io/default-container: manager
+        sidecar.istio.io/inject: "true"
       labels:
         control-plane: controller-manager
+        app.kubernetes.io/name: dbchan
     spec:
       # TODO(user): Uncomment the following code to configure the nodeAffinity expression
       # according to the platforms which are supported by your solution.
