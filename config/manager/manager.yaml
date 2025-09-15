@@ -5,8 +5,7 @@ metadata:
     control-plane: controller-manager
     app.kubernetes.io/name: dbchan
     app.kubernetes.io/managed-by: kustomize
-  annotations:
-    sidecar.istio.io/inject: "true"
+    istio-injection: enabled
   name: system
 ---
 apiVersion: apps/v1
