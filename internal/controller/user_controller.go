@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-logr/logr"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	_ "github.com/microsoft/go-mssqldb"
@@ -240,7 +241,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	}
 
 	// Create or update the database user
-	if err := r.createOrUpdateUser(ctx, user, datastore, database); err != nil {
+	if err := r.createOrUpdateUser(ctx, user, datastore, database, logger); err != nil {
 		user.Status.Phase = "Failed"
 		user.Status.Ready = false
 		user.Status.Message = fmt.Sprintf("Failed to create/update user: %v", err)
@@ -270,7 +271,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 }
 
 // createOrUpdateUser creates or updates a database user
-func (r *UserReconciler) createOrUpdateUser(ctx context.Context, user *dbv1.User, datastore *dbv1.Datastore, database *dbv1.Database) error {
+func (r *UserReconciler) createOrUpdateUser(ctx context.Context, user *dbv1.User, datastore *dbv1.Datastore, database *dbv1.Database, logger logr.Logger) error {
 	// Get datastore credentials
 	secret, err := r.getDatastoreSecret(ctx, datastore)
 	if err != nil {
@@ -296,7 +297,7 @@ func (r *UserReconciler) createOrUpdateUser(ctx context.Context, user *dbv1.User
 	// Create or update user based on database type
 	switch datastore.Spec.DatastoreType {
 	case "mysql", "mariadb":
-		return r.createOrUpdateMySQLUser(ctx, db, user, string(password), database)
+		return r.createOrUpdateMySQLUser(ctx, db, user, string(password), database, logger)
 	case "postgres", "postgresql":
 		return r.createOrUpdatePostgreSQLUser(ctx, db, user, string(password), database)
 	case "sqlserver", "mssql":
@@ -437,7 +438,7 @@ func (r *UserReconciler) connectToDatabase(ctx context.Context, datastoreType, c
 }
 
 // createOrUpdateMySQLUser creates or updates a MySQL/MariaDB user
-func (r *UserReconciler) createOrUpdateMySQLUser(ctx context.Context, db *sql.DB, user *dbv1.User, password string, database *dbv1.Database) error {
+func (r *UserReconciler) createOrUpdateMySQLUser(ctx context.Context, db *sql.DB, user *dbv1.User, password string, database *dbv1.Database, logger logr.Logger) error {
 	// Create user
 	createUserSQL := fmt.Sprintf("CREATE USER IF NOT EXISTS '%s'@'%s' IDENTIFIED BY '%s'",
 		user.Spec.Username, user.Spec.Host, password)
@@ -446,31 +447,49 @@ func (r *UserReconciler) createOrUpdateMySQLUser(ctx context.Context, db *sql.DB
 	}
 
 	// Grant privileges
-	if database != nil {
-		// Database-specific privileges
-		for _, privilege := range user.Spec.Privileges {
-			grantSQL := fmt.Sprintf("GRANT %s ON `%s`.* TO '%s'@'%s'",
-				privilege, database.Name, user.Spec.Username, user.Spec.Host)
-			if _, err := db.ExecContext(ctx, grantSQL); err != nil {
-				return fmt.Errorf("failed to grant privilege %s: %v", privilege, err)
+	if len(user.Spec.Privileges) > 0 {
+		if database != nil {
+			// Database-specific privileges
+			for _, privilege := range user.Spec.Privileges {
+				grantSQL := fmt.Sprintf("GRANT %s ON `%s`.* TO '%s'@'%s'",
+					privilege, database.Name, user.Spec.Username, user.Spec.Host)
+				if _, err := db.ExecContext(ctx, grantSQL); err != nil {
+					return fmt.Errorf("failed to grant privilege %s: %v", privilege, err)
+				}
 			}
-		}
-	} else {
-		// Global privileges
-		for _, privilege := range user.Spec.Privileges {
-			grantSQL := fmt.Sprintf("GRANT %s ON *.* TO '%s'@'%s'",
-				privilege, user.Spec.Username, user.Spec.Host)
-			if _, err := db.ExecContext(ctx, grantSQL); err != nil {
-				return fmt.Errorf("failed to grant privilege %s: %v", privilege, err)
+		} else {
+			// Global privileges
+			for _, privilege := range user.Spec.Privileges {
+				grantSQL := fmt.Sprintf("GRANT %s ON *.* TO '%s'@'%s'",
+					privilege, user.Spec.Username, user.Spec.Host)
+				if _, err := db.ExecContext(ctx, grantSQL); err != nil {
+					return fmt.Errorf("failed to grant privilege %s: %v", privilege, err)
+				}
 			}
 		}
 	}
 
-	// Grant roles
-	for _, role := range user.Spec.Roles {
-		grantRoleSQL := fmt.Sprintf("GRANT %s TO '%s'@'%s'", role, user.Spec.Username, user.Spec.Host)
-		if _, err := db.ExecContext(ctx, grantRoleSQL); err != nil {
-			return fmt.Errorf("failed to grant role %s: %v", role, err)
+	// Grant roles (create role if it doesn't exist, then grant it)
+	if len(user.Spec.Roles) > 0 {
+		for _, role := range user.Spec.Roles {
+			// Create role if it doesn't exist
+			createRoleSQL := fmt.Sprintf("CREATE ROLE IF NOT EXISTS '%s'", role)
+			if _, err := db.ExecContext(ctx, createRoleSQL); err != nil {
+				return fmt.Errorf("failed to create role %s: %v", role, err)
+			}
+
+			// Grant role to user
+			grantRoleSQL := fmt.Sprintf("GRANT '%s' TO '%s'@'%s'", role, user.Spec.Username, user.Spec.Host)
+			if _, err := db.ExecContext(ctx, grantRoleSQL); err != nil {
+				return fmt.Errorf("failed to grant role %s: %v", role, err)
+			}
+
+			// Set default role for the user
+			setRoleSQL := fmt.Sprintf("SET DEFAULT ROLE '%s' FOR '%s'@'%s'", role, user.Spec.Username, user.Spec.Host)
+			if _, err := db.ExecContext(ctx, setRoleSQL); err != nil {
+				// This might fail in older MariaDB versions, so we'll just log it
+				logger.V(1).Info("Failed to set default role (this might not be supported in your MariaDB version)", "role", role, "error", err)
+			}
 		}
 	}
 

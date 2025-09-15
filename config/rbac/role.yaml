@@ -13,6 +13,14 @@ rules:
   - list
   - watch
 - apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - db.fatiudeen.dev
   resources:
   - databases
@@ -86,6 +94,32 @@ rules:
   - db.fatiudeen.dev
   resources:
   - migrations/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - roles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - roles/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - roles/status
   verbs:
   - get
   - patch
