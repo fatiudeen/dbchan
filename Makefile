@@ -120,6 +120,9 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default > charts/dbchan/templates/all.yaml
 
+.PHONY: build-all
+build-all: generate manifests build-installer ## Run generate, manifests, and build-installer in sequence.
+
 ##@ Deployment
 
 ifndef ignore-not-found
