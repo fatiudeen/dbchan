@@ -21,8 +21,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// RoleSpec defines the desired state of Role
-type RoleSpec struct {
+// DatabaseRoleSpec defines the desired state of DatabaseRole
+type DatabaseRoleSpec struct {
 	// DatastoreRef references the datastore where this role will be created
 	DatastoreRef corev1.LocalObjectReference `json:"datastoreRef"`
 
@@ -39,8 +39,8 @@ type RoleSpec struct {
 	IsGlobal bool `json:"isGlobal,omitempty"`
 }
 
-// RoleStatus defines the observed state of Role
-type RoleStatus struct {
+// DatabaseRoleStatus defines the observed state of DatabaseRole
+type DatabaseRoleStatus struct {
 	// Phase represents the current phase of the role
 	Phase string `json:"phase,omitempty"`
 
@@ -64,24 +64,24 @@ type RoleStatus struct {
 //+kubebuilder:printcolumn:name="Created",type="boolean",JSONPath=".status.created"
 //+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
-// Role is the Schema for the roles API
-type Role struct {
+// DatabaseRole is the Schema for the databaseroles API
+type DatabaseRole struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   RoleSpec   `json:"spec,omitempty"`
-	Status RoleStatus `json:"status,omitempty"`
+	Spec   DatabaseRoleSpec   `json:"spec,omitempty"`
+	Status DatabaseRoleStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// RoleList contains a list of Role
-type RoleList struct {
+// DatabaseRoleList contains a list of DatabaseRole
+type DatabaseRoleList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Role `json:"items"`
+	Items           []DatabaseRole `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Role{}, &RoleList{})
+	SchemeBuilder.Register(&DatabaseRole{}, &DatabaseRoleList{})
 }
