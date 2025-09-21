@@ -1,0 +1,9 @@
+apiVersion: builtin
+kind: LabelTransformer
+metadata:
+  name: remove-all-labels
+labels:
+  {}
+fieldSpecs:
+  - path: metadata/labels
+    create: true

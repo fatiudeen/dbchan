@@ -1,0 +1,21 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "dbchan.fullname" . }}-datastore-viewer-role
+  labels:
+  {{- include "dbchan.labels" . | nindent 4 }}
+rules:
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - datastores
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - datastores/status
+  verbs:
+  - get

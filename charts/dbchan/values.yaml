@@ -1,6 +1,27 @@
-replicas: "1"
-
-image:
-  repository: fatiudeen/dbchan
-  tag: v1
-  pullPolicy: IfNotPresent
+controllerManager:
+  manager:
+    args:
+    - --leader-elect
+    - --health-probe-bind-address=:8081
+    - --zap-log-level=debug
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+    image:
+      repository: controller
+      tag: latest
+    resources:
+      limits:
+        cpu: 500m
+        memory: 128Mi
+      requests:
+        cpu: 10m
+        memory: 64Mi
+  podSecurityContext:
+    runAsNonRoot: true
+  replicas: 1
+  serviceAccount:
+    annotations: {}
+kubernetesClusterDomain: cluster.local

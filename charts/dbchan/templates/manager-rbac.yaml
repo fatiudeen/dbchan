@@ -1,0 +1,168 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "dbchan.fullname" . }}-manager-role
+  labels:
+  {{- include "dbchan.labels" . | nindent 4 }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - databases
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - databases/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - databases/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - datastores
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - datastores/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - datastores/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - migrations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - migrations/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - migrations/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - roles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - roles/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - roles/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - users
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - users/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - users/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "dbchan.fullname" . }}-manager-rolebinding
+  labels:
+  {{- include "dbchan.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: '{{ include "dbchan.fullname" . }}-manager-role'
+subjects:
+- kind: ServiceAccount
+  name: '{{ include "dbchan.fullname" . }}-controller-manager'
+  namespace: '{{ .Release.Namespace }}'
