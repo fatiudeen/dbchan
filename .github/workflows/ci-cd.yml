@@ -31,6 +31,9 @@ on:
         default: false
         type: boolean
 
+permissions:
+  contents: write
+
 env:
   REGISTRY: fatiudeen
   IMAGE_NAME: dbchan
@@ -169,7 +172,7 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     needs: version-management
-    if: always() && (needs.version-management.outputs.should-bump == 'true' || github.event_name == 'push')
+    if: needs.version-management.result == 'success' && (needs.version-management.outputs.should-bump == 'true' || github.event_name == 'push')
     
     steps:
     - name: Checkout
@@ -198,7 +201,7 @@ jobs:
   build-and-push-chart:
     runs-on: ubuntu-latest
     needs: [version-management, build-and-push]
-    if: always() && (needs.version-management.outputs.should-bump == 'true' || github.event_name == 'push')
+    if: needs.version-management.result == 'success' && needs.build-and-push.result == 'success' && (needs.version-management.outputs.should-bump == 'true' || github.event_name == 'push')
     
     steps:
     - name: Checkout
@@ -248,10 +251,185 @@ jobs:
         
         echo "Chart artifact pushed successfully to OCI registry"
     
-    - name: Upload Chart Artifacts
-      uses: actions/upload-artifact@v3
+  rollback:
+    runs-on: ubuntu-latest
+    needs: [version-management, build-and-push, build-and-push-chart]
+    if: failure() && needs.version-management.outputs.should-bump == 'true'
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
       with:
-        name: helm-chart-${{ needs.version-management.outputs.chart-version }}
-        path: dist/
-        retention-days: 30
+        fetch-depth: 0
+    
+    - name: Set up Git
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+    
+    - name: Rollback Version Changes
+      run: |
+        echo "🔄 Rolling back version changes due to workflow failure..."
+        
+        # Get the original versions (before bump)
+        ORIGINAL_CHART_VERSION="${{ needs.version-management.outputs.chart-version }}"
+        ORIGINAL_APP_VERSION="${{ needs.version-management.outputs.app-version }}"
+        
+        # If version was bumped, we need to revert to previous version
+        if [ "${{ needs.version-management.outputs.should-bump }}" = "true" ]; then
+          # Parse current version to get previous version
+          IFS='.' read -r major minor patch <<< "$ORIGINAL_CHART_VERSION"
+          
+          # Calculate previous version based on bump type
+          BUMP_TYPE="${{ github.event.inputs.version_bump_type || 'minor' }}"
+          case "$BUMP_TYPE" in
+            "patch")
+              if [ "$patch" -gt 0 ]; then
+                patch=$((patch - 1))
+              fi
+              ;;
+            "minor")
+              if [ "$minor" -gt 0 ]; then
+                minor=$((minor - 1))
+                patch=0
+              fi
+              ;;
+            "major")
+              if [ "$major" -gt 0 ]; then
+                major=$((major - 1))
+                minor=0
+                patch=0
+              fi
+              ;;
+          esac
+          
+          PREVIOUS_CHART_VERSION="$major.$minor.$patch"
+          PREVIOUS_APP_VERSION="v$PREVIOUS_CHART_VERSION"
+          
+          echo "Reverting from $ORIGINAL_CHART_VERSION to $PREVIOUS_CHART_VERSION"
+          
+          # Revert Chart.yaml
+          sed -i "s/^version: .*/version: $PREVIOUS_CHART_VERSION/" charts/dbchan/Chart.yaml
+          sed -i "s/^appVersion: .*/appVersion: \"$PREVIOUS_APP_VERSION\"/" charts/dbchan/Chart.yaml
+          
+          # Revert values.yaml
+          sed -i "s/^      tag: .*/      tag: \"$PREVIOUS_APP_VERSION\"/" charts/dbchan/values.yaml
+          
+          # Commit the rollback
+          git add charts/dbchan/Chart.yaml charts/dbchan/values.yaml
+          git commit -m "Rollback version to $PREVIOUS_CHART_VERSION due to workflow failure" || echo "No changes to commit"
+          git push origin ${{ github.ref_name }} || echo "Failed to push rollback"
+          
+          # Delete the tag if it was created
+          if git tag -l "${{ needs.version-management.outputs.new-tag }}" > /dev/null 2>&1; then
+            echo "Deleting tag ${{ needs.version-management.outputs.new-tag }}"
+            git tag -d "${{ needs.version-management.outputs.new-tag }}" || true
+            git push origin --delete "${{ needs.version-management.outputs.new-tag }}" || true
+          fi
+          
+          echo "✅ Rollback completed successfully"
+        else
+          echo "ℹ️ No version bump was performed, no rollback needed"
+        fi
+    
+    - name: Rollback Summary
+      run: |
+        echo "## 🔄 Rollback Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### ❌ Workflow Failure" >> $GITHUB_STEP_SUMMARY
+        echo "The CI/CD pipeline failed and rollback has been initiated." >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔧 Actions Taken" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ needs.version-management.outputs.should-bump }}" = "true" ]; then
+          echo "- ✅ Reverted Chart.yaml to previous version" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Reverted values.yaml to previous version" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Deleted Git tag ${{ needs.version-management.outputs.new-tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Pushed rollback changes to repository" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- ℹ️ No version bump was performed, no rollback needed" >> $GITHUB_STEP_SUMMARY
+        fi
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📋 Failed Jobs" >> $GITHUB_STEP_SUMMARY
+        echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Version Management | ${{ needs.version-management.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Build & Push Image | ${{ needs.build-and-push.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Build & Push Chart | ${{ needs.build-and-push-chart.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🎯 Next Steps" >> $GITHUB_STEP_SUMMARY
+        echo "- 🔍 Review the failed job logs to identify the issue" >> $GITHUB_STEP_SUMMARY
+        echo "- 🔧 Fix the issue and re-run the workflow" >> $GITHUB_STEP_SUMMARY
+        echo "- 📝 Check that all changes have been properly reverted" >> $GITHUB_STEP_SUMMARY
+
+  summary:
+    runs-on: ubuntu-latest
+    needs: [version-management, build-and-push, build-and-push-chart, rollback]
+    if: always()
+    
+    steps:
+    - name: Workflow Summary
+      run: |
+        echo "## 🚀 CI/CD Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "### 📊 Version Information" >> $GITHUB_STEP_SUMMARY
+        echo "- **Chart Version**: ${{ needs.version-management.outputs.chart-version }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **App Version**: ${{ needs.version-management.outputs.app-version }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Image Tag**: ${{ needs.version-management.outputs.image-tag }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Version Bumped**: ${{ needs.version-management.outputs.should-bump }}" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ needs.version-management.outputs.new-tag }}" != "" ]; then
+          echo "- **New Git Tag**: ${{ needs.version-management.outputs.new-tag }}" >> $GITHUB_STEP_SUMMARY
+        fi
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "### 🐳 Docker Images" >> $GITHUB_STEP_SUMMARY
+        echo "- **Controller Image**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.version-management.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Registry**: Docker Hub" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "### 📦 Helm Charts" >> $GITHUB_STEP_SUMMARY
+        echo "- **Chart Package**: \`dbchan-${{ needs.version-management.outputs.chart-version }}.tgz\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **OCI Registry**: \`oci://registry-1.docker.io/${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-chart\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Chart Version**: \`${{ needs.version-management.outputs.chart-version }}\`" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ needs.version-management.outputs.should-bump }}" = "true" ]; then
+          echo "- **Latest Tag**: \`latest\`" >> $GITHUB_STEP_SUMMARY
+        fi
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "### 🔧 Installation Commands" >> $GITHUB_STEP_SUMMARY
+        echo '```bash' >> $GITHUB_STEP_SUMMARY
+        echo "# Install from OCI registry" >> $GITHUB_STEP_SUMMARY
+        echo "helm install dbchan oci://registry-1.docker.io/${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-chart --version ${{ needs.version-management.outputs.chart-version }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "# Or install latest version" >> $GITHUB_STEP_SUMMARY
+        echo "helm install dbchan oci://registry-1.docker.io/${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-chart" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "### 📋 Job Status" >> $GITHUB_STEP_SUMMARY
+        echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Version Management | ${{ needs.version-management.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Build & Push Image | ${{ needs.build-and-push.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Build & Push Chart | ${{ needs.build-and-push-chart.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Rollback | ${{ needs.rollback.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "### 🎯 Next Steps" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ needs.rollback.result }}" = "success" ]; then
+          echo "- 🔄 **ROLLBACK COMPLETED** - Version changes have been reverted" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔍 Review the failed job logs to identify the issue" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔧 Fix the issue and re-run the workflow" >> $GITHUB_STEP_SUMMARY
+          echo "- 📝 Verify that all changes have been properly reverted" >> $GITHUB_STEP_SUMMARY
+        elif [ "${{ needs.version-management.outputs.should-bump }}" = "true" ]; then
+          echo "- ✅ New version ${{ needs.version-management.outputs.chart-version }} has been released" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Docker image and Helm chart are available" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Git tag ${{ needs.version-management.outputs.new-tag }} has been created" >> $GITHUB_STEP_SUMMARY
+          echo "- 📖 Check the artifacts section for downloadable chart packages" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- ℹ️ No version bump was performed" >> $GITHUB_STEP_SUMMARY
+          echo "- ℹ️ Using existing version ${{ needs.version-management.outputs.chart-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 📖 Check the artifacts section for downloadable chart packages" >> $GITHUB_STEP_SUMMARY
+        fi
+        echo "- 🔍 Review the logs for any warnings or issues" >> $GITHUB_STEP_SUMMARY
 
