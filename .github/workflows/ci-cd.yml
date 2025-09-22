@@ -292,6 +292,9 @@ jobs:
       run: |
         echo "🔄 Rolling back version changes due to workflow failure..."
         
+        # Pull latest changes to ensure we're up to date
+        git pull origin ${{ github.ref_name }} || echo "Failed to pull, continuing with rollback"
+        
         # Get the original versions (before bump)
         ORIGINAL_CHART_VERSION="${{ needs.version-management.outputs.chart-version }}"
         ORIGINAL_APP_VERSION="${{ needs.version-management.outputs.app-version }}"
@@ -336,16 +339,32 @@ jobs:
           # Revert values.yaml
           sed -i "s/^      tag: .*/      tag: \"$PREVIOUS_APP_VERSION\"/" charts/dbchan/values.yaml
           
-          # Commit the rollback
-          git add charts/dbchan/Chart.yaml charts/dbchan/values.yaml
-          git commit -m "Rollback version to $PREVIOUS_CHART_VERSION due to workflow failure" || echo "No changes to commit"
-          git push origin ${{ github.ref_name }} || echo "Failed to push rollback"
+          # Check if there are any changes to commit
+          if git diff --quiet charts/dbchan/Chart.yaml charts/dbchan/values.yaml; then
+            echo "No changes detected in Chart.yaml or values.yaml - they may already be at the correct version"
+          else
+            echo "Changes detected, committing rollback..."
+            git add charts/dbchan/Chart.yaml charts/dbchan/values.yaml
+            git commit -m "Rollback version to $PREVIOUS_CHART_VERSION due to workflow failure"
+            
+            # Force push if necessary (since we're rolling back)
+            git push origin ${{ github.ref_name }} --force-with-lease || {
+              echo "Failed to push rollback with --force-with-lease, trying regular push..."
+              git push origin ${{ github.ref_name }} --force || echo "Failed to push rollback"
+            }
+          fi
           
           # Delete the tag if it was created
-          if git tag -l "${{ needs.version-management.outputs.new-tag }}" > /dev/null 2>&1; then
-            echo "Deleting tag ${{ needs.version-management.outputs.new-tag }}"
-            git tag -d "${{ needs.version-management.outputs.new-tag }}" || true
-            git push origin --delete "${{ needs.version-management.outputs.new-tag }}" || true
+          if [ -n "${{ needs.version-management.outputs.new-tag }}" ]; then
+            echo "Attempting to delete tag ${{ needs.version-management.outputs.new-tag }}"
+            
+            # Delete local tag
+            git tag -d "${{ needs.version-management.outputs.new-tag }}" 2>/dev/null || echo "Local tag not found or already deleted"
+            
+            # Delete remote tag
+            git push origin --delete "${{ needs.version-management.outputs.new-tag }}" 2>/dev/null || echo "Remote tag not found or already deleted"
+          else
+            echo "No tag to delete"
           fi
           
           echo "✅ Rollback completed successfully"
