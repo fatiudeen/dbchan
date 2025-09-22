@@ -214,8 +214,21 @@ jobs:
     
     - name: Package Helm Chart
       run: |
+        echo "Packaging chart with version: ${{ needs.version-management.outputs.chart-version }}"
+        
+        # Ensure Chart.yaml has the correct version (in case it wasn't updated in version-management)
+        sed -i "s/^version: .*/version: ${{ needs.version-management.outputs.chart-version }}/" charts/dbchan/Chart.yaml
+        sed -i "s/^appVersion: .*/appVersion: \"${{ needs.version-management.outputs.app-version }}\"/" charts/dbchan/Chart.yaml
+        
+        # Verify the version in Chart.yaml
+        echo "Chart.yaml version: $(grep '^version:' charts/dbchan/Chart.yaml)"
+        echo "Chart.yaml appVersion: $(grep '^appVersion:' charts/dbchan/Chart.yaml)"
+        
         helm package charts/dbchan --destination ./dist/
         echo "Chart packaged successfully"
+        echo "Available files in dist/:"
+        ls -la ./dist/
+        echo "Chart file should be: dbchan-${{ needs.version-management.outputs.chart-version }}.tgz"
     
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -231,21 +244,29 @@ jobs:
         # Enable OCI support for Helm
         export HELM_EXPERIMENTAL_OCI=1
         
-        # Package the chart
-        helm package charts/dbchan --destination ./dist/
-        
         # Login to Docker Hub registry
         echo "${{ secrets.DOCKERHUB_TOKEN }}" | helm registry login registry-1.docker.io \
           --username ${{ secrets.DOCKERHUB_USERNAME }} \
           --password-stdin
         
+        # Verify the chart file exists
+        CHART_FILE="./dist/dbchan-${{ needs.version-management.outputs.chart-version }}.tgz"
+        if [ ! -f "$CHART_FILE" ]; then
+          echo "Error: Chart file $CHART_FILE not found!"
+          echo "Available files in dist/:"
+          ls -la ./dist/ || echo "dist/ directory not found"
+          exit 1
+        fi
+        
+        echo "Pushing chart file: $CHART_FILE"
+        
         # Push chart to OCI registry
-        helm push ./dist/dbchan-${{ needs.version-management.outputs.chart-version }}.tgz \
+        helm push "$CHART_FILE" \
           oci://registry-1.docker.io/${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-chart
         
         # Also tag as latest if this is a new version
         if [ "${{ needs.version-management.outputs.should-bump }}" = "true" ]; then
-          helm push ./dist/dbchan-${{ needs.version-management.outputs.chart-version }}.tgz \
+          helm push "$CHART_FILE" \
             oci://registry-1.docker.io/${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-chart:latest
         fi
         
