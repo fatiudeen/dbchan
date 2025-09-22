@@ -2,7 +2,7 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, develop ]
     paths:
       - 'config/**'
       - 'Makefile'
@@ -12,19 +12,164 @@ on:
       - 'cmd/**'
       - 'internal/**'
       - 'api/**'
+      - 'charts/**'
     tags: [ 'v*' ]
-    
+  workflow_dispatch:
+    inputs:
+      version_bump_type:
+        description: 'Version bump type for major releases'
+        required: true
+        default: 'major'
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+      force_bump:
+        description: 'Force version bump even if tag exists'
+        required: false
+        default: false
+        type: boolean
 
 env:
   REGISTRY: fatiudeen
   IMAGE_NAME: dbchan
-  IMAGE_TAG: ${{ github.ref_name }}-${{ github.run_number }}
 
 jobs:
 
+  version-management:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    outputs:
+      chart-version: ${{ steps.version-bump.outputs.chart-version }}
+      app-version: ${{ steps.version-bump.outputs.app-version }}
+      image-tag: ${{ steps.version-bump.outputs.image-tag }}
+      should-bump: ${{ steps.version-bump.outputs.should-bump }}
+      new-tag: ${{ steps.version-bump.outputs.new-tag }}
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history for tag checking
+    
+    - name: Set up Git
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+    
+    - name: Version Management
+      id: version-bump
+      run: |
+        # Get current versions from Chart.yaml
+        CHART_VERSION=$(grep '^version:' charts/dbchan/Chart.yaml | awk '{print $2}')
+        APP_VERSION=$(grep '^appVersion:' charts/dbchan/Chart.yaml | awk '{print $2}' | tr -d '"')
+        
+        echo "Current chart version: $CHART_VERSION"
+        echo "Current app version: $APP_VERSION"
+        
+        # Determine if we should bump version
+        SHOULD_BUMP="false"
+        NEW_TAG=""
+        
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          # Manual workflow dispatch - always bump
+          BUMP_TYPE="${{ github.event.inputs.version_bump_type }}"
+          FORCE_BUMP="${{ github.event.inputs.force_bump }}"
+          SHOULD_BUMP="true"
+          echo "Manual workflow dispatch with $BUMP_TYPE bump"
+        else
+          # Check if we're on master or develop
+          if [ "${{ github.ref }}" = "refs/heads/master" ]; then
+            BUMP_TYPE="minor"
+            echo "On master branch - will bump minor version"
+          elif [ "${{ github.ref }}" = "refs/heads/develop" ]; then
+            BUMP_TYPE="patch"
+            echo "On develop branch - will bump patch version"
+          else
+            echo "Not on master or develop - no version bump"
+            echo "should-bump=false" >> $GITHUB_OUTPUT
+            echo "chart-version=$CHART_VERSION" >> $GITHUB_OUTPUT
+            echo "app-version=$APP_VERSION" >> $GITHUB_OUTPUT
+            echo "image-tag=$APP_VERSION" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Check if tag already exists for current version
+          TAG_EXISTS=$(git tag -l "v$CHART_VERSION" | wc -l)
+          if [ "$TAG_EXISTS" -gt 0 ] && [ "$FORCE_BUMP" != "true" ]; then
+            echo "Tag v$CHART_VERSION already exists - no version bump needed"
+            echo "should-bump=false" >> $GITHUB_OUTPUT
+            echo "chart-version=$CHART_VERSION" >> $GITHUB_OUTPUT
+            echo "app-version=$APP_VERSION" >> $GITHUB_OUTPUT
+            echo "image-tag=$APP_VERSION" >> $GITHUB_OUTPUT
+            exit 0
+          else
+            SHOULD_BUMP="true"
+            echo "Tag v$CHART_VERSION does not exist or force bump enabled - will bump $BUMP_TYPE"
+          fi
+        fi
+        
+        if [ "$SHOULD_BUMP" = "true" ]; then
+          # Parse current version
+          IFS='.' read -r major minor patch <<< "$CHART_VERSION"
+          
+          # Bump version based on type
+          case "$BUMP_TYPE" in
+            "patch")
+              patch=$((patch + 1))
+              ;;
+            "minor")
+              minor=$((minor + 1))
+              patch=0
+              ;;
+            "major")
+              major=$((major + 1))
+              minor=0
+              patch=0
+              ;;
+          esac
+          
+          NEW_CHART_VERSION="$major.$minor.$patch"
+          NEW_APP_VERSION="v$NEW_CHART_VERSION"
+          NEW_TAG="v$NEW_CHART_VERSION"
+          
+          echo "New chart version: $NEW_CHART_VERSION"
+          echo "New app version: $NEW_APP_VERSION"
+          echo "New tag: $NEW_TAG"
+          
+          # Update Chart.yaml
+          sed -i "s/^version: .*/version: $NEW_CHART_VERSION/" charts/dbchan/Chart.yaml
+          sed -i "s/^appVersion: .*/appVersion: \"$NEW_APP_VERSION\"/" charts/dbchan/Chart.yaml
+          
+          # Update values.yaml to use the new app version as image tag
+          sed -i "s/^      tag: .*/      tag: \"$NEW_APP_VERSION\"/" charts/dbchan/values.yaml
+          
+          # Commit and push changes
+          git add charts/dbchan/Chart.yaml charts/dbchan/values.yaml
+          git commit -m "Bump version to $NEW_CHART_VERSION ($BUMP_TYPE)"
+          git push origin ${{ github.ref_name }}
+          
+          # Create and push tag
+          git tag $NEW_TAG
+          git push origin $NEW_TAG
+          
+          echo "should-bump=true" >> $GITHUB_OUTPUT
+          echo "chart-version=$NEW_CHART_VERSION" >> $GITHUB_OUTPUT
+          echo "app-version=$NEW_APP_VERSION" >> $GITHUB_OUTPUT
+          echo "image-tag=$NEW_APP_VERSION" >> $GITHUB_OUTPUT
+          echo "new-tag=$NEW_TAG" >> $GITHUB_OUTPUT
+        else
+          echo "should-bump=false" >> $GITHUB_OUTPUT
+          echo "chart-version=$CHART_VERSION" >> $GITHUB_OUTPUT
+          echo "app-version=$APP_VERSION" >> $GITHUB_OUTPUT
+          echo "image-tag=$APP_VERSION" >> $GITHUB_OUTPUT
+        fi
+
   build-and-push:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    needs: version-management
+    if: always() && (needs.version-management.outputs.should-bump == 'true' || github.event_name == 'push')
     
     steps:
     - name: Checkout
@@ -34,7 +179,6 @@ jobs:
       uses: actions/setup-go@v4
       with:
         go-version: '1.23'
-    
     
     - name: Build project
       run: make build
@@ -49,5 +193,65 @@ jobs:
         password: ${{ secrets.DOCKERHUB_TOKEN }}
     
     - name: Build and Push Docker image
-      run: make docker-buildx IMG=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+      run: make docker-buildx IMG=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.version-management.outputs.image-tag }}
+
+  build-and-push-chart:
+    runs-on: ubuntu-latest
+    needs: [version-management, build-and-push]
+    if: always() && (needs.version-management.outputs.should-bump == 'true' || github.event_name == 'push')
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Set up Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: '3.12.0'
+    
+    - name: Package Helm Chart
+      run: |
+        helm package charts/dbchan --destination ./dist/
+        echo "Chart packaged successfully"
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    
+    - name: Build and Push Chart OCI Artifact
+      run: |
+        # Enable OCI support for Helm
+        export HELM_EXPERIMENTAL_OCI=1
+        
+        # Package the chart
+        helm package charts/dbchan --destination ./dist/
+        
+        # Login to Docker Hub registry
+        echo "${{ secrets.DOCKERHUB_TOKEN }}" | helm registry login registry-1.docker.io \
+          --username ${{ secrets.DOCKERHUB_USERNAME }} \
+          --password-stdin
+        
+        # Push chart to OCI registry
+        helm push ./dist/dbchan-${{ needs.version-management.outputs.chart-version }}.tgz \
+          oci://registry-1.docker.io/${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-chart
+        
+        # Also tag as latest if this is a new version
+        if [ "${{ needs.version-management.outputs.should-bump }}" = "true" ]; then
+          helm push ./dist/dbchan-${{ needs.version-management.outputs.chart-version }}.tgz \
+            oci://registry-1.docker.io/${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-chart:latest
+        fi
+        
+        echo "Chart artifact pushed successfully to OCI registry"
+    
+    - name: Upload Chart Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: helm-chart-${{ needs.version-management.outputs.chart-version }}
+        path: dist/
+        retention-days: 30
 

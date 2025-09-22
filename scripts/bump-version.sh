@@ -108,6 +108,14 @@ update_chart_version() {
     sed -i.bak "s/^version: .*/version: $new_version/" "$chart_file"
     rm "$chart_file.bak"
     
+    # Update values.yaml to use the new version as image tag
+    local values_file="$PROJECT_ROOT/charts/dbchan/values.yaml"
+    if [ -f "$values_file" ]; then
+        sed -i.bak "s/^      tag: .*/      tag: \"v$new_version\"/" "$values_file"
+        rm "$values_file.bak"
+        print_success "Updated values.yaml image tag to v$new_version"
+    fi
+    
     print_success "Updated chart version to $new_version"
 }
 
@@ -122,11 +130,19 @@ update_app_version() {
     fi
     
     # Add 'v' prefix to app version
-    local app_version="v.$new_version"
+    local app_version="v$new_version"
     
     # Update appVersion in Chart.yaml
     sed -i.bak "s/^appVersion: .*/appVersion: \"$app_version\"/" "$chart_file"
     rm "$chart_file.bak"
+    
+    # Update values.yaml to use the new app version as image tag
+    local values_file="$PROJECT_ROOT/charts/dbchan/values.yaml"
+    if [ -f "$values_file" ]; then
+        sed -i.bak "s/^      tag: .*/      tag: \"$app_version\"/" "$values_file"
+        rm "$values_file.bak"
+        print_success "Updated values.yaml image tag to $app_version"
+    fi
     
     print_success "Updated app version to $app_version"
 }
@@ -183,7 +199,7 @@ main() {
         "app")
             local parsed_app_version=$(parse_version "$current_app_version")
             local new_app_version=$(bump_version "$parsed_app_version" "$bump_type")
-            print_info "New app version: v.$new_app_version"
+            print_info "New app version: v$new_app_version"
             update_app_version "$new_app_version"
             ;;
         "both")
@@ -192,7 +208,7 @@ main() {
             local new_app_version=$(bump_version "$parsed_app_version" "$bump_type")
             
             print_info "New chart version: $new_chart_version"
-            print_info "New app version: v.$new_app_version"
+            print_info "New app version: v$new_app_version"
             
             update_chart_version "$new_chart_version"
             update_app_version "$new_app_version"

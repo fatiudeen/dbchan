@@ -199,6 +199,26 @@ $(HELMIFY): $(LOCALBIN)
 helm: manifests kustomize helmify
 	$(KUSTOMIZE) build config/default | $(HELMIFY) charts/dbchan
 
+.PHONY: helm-package
+helm-package: ## Package Helm chart
+	mkdir -p dist
+	helm package charts/dbchan --destination ./dist/
+
+.PHONY: helm-push-oci
+helm-push-oci: ## Push Helm chart as OCI artifact to registry
+	@if [ -z "$(IMG)" ]; then echo "IMG is required (e.g., IMG=registry/chart:tag)"; exit 1; fi
+	@if [ -z "$(DOCKERHUB_USERNAME)" ] || [ -z "$(DOCKERHUB_TOKEN)" ]; then echo "DOCKERHUB_USERNAME and DOCKERHUB_TOKEN are required"; exit 1; fi
+	# Enable OCI support for Helm
+	export HELM_EXPERIMENTAL_OCI=1
+	# Package the chart
+	helm package charts/dbchan --destination ./dist/
+	# Login to Docker Hub registry
+	echo "$(DOCKERHUB_TOKEN)" | helm registry login registry-1.docker.io \
+		--username $(DOCKERHUB_USERNAME) \
+		--password-stdin
+	# Push chart to OCI registry
+	helm push ./dist/dbchan-*.tgz oci://registry-1.docker.io/$(IMG)
+
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
 # $1 - target path with name of binary (ideally with version)
 # $2 - package url which can be installed
