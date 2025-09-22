@@ -264,11 +264,6 @@ jobs:
         helm push "$CHART_FILE" \
           oci://registry-1.docker.io/${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-chart
         
-        # Also tag as latest if this is a new version
-        if [ "${{ needs.version-management.outputs.should-bump }}" = "true" ]; then
-          helm push "$CHART_FILE" \
-            oci://registry-1.docker.io/${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-chart:latest
-        fi
         
         echo "Chart artifact pushed successfully to OCI registry"
     
