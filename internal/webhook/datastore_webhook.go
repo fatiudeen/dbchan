@@ -148,10 +148,10 @@ func (r *DatastoreWebhook) validateNamingConventions(datastore *dbv1.Datastore) 
 		return fmt.Errorf("datastore name must be between 1 and 63 characters")
 	}
 
-	// Check for valid characters (alphanumeric and hyphens, must start and end with alphanumeric)
-	validNameRegex := regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$`)
+	// Check for valid characters (alphanumeric, underscores, and hyphens, must start and end with alphanumeric)
+	validNameRegex := regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$`)
 	if !validNameRegex.MatchString(name) {
-		return fmt.Errorf("datastore name must contain only alphanumeric characters and hyphens, and must start and end with alphanumeric characters")
+		return fmt.Errorf("datastore name must contain only alphanumeric characters, underscores, and hyphens, and must start and end with alphanumeric characters")
 	}
 
 	// Check for reserved names
