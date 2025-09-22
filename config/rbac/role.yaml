@@ -23,6 +23,32 @@ rules:
 - apiGroups:
   - db.fatiudeen.dev
   resources:
+  - databaseroles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - databaseroles/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
+  - databaseroles/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - db.fatiudeen.dev
+  resources:
   - databases
   verbs:
   - create
@@ -94,32 +120,6 @@ rules:
   - db.fatiudeen.dev
   resources:
   - migrations/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - db.fatiudeen.dev
-  resources:
-  - roles
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - db.fatiudeen.dev
-  resources:
-  - roles/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - db.fatiudeen.dev
-  resources:
-  - roles/status
   verbs:
   - get
   - patch

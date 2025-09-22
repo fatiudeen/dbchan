@@ -33,25 +33,25 @@ import (
 )
 
 // log is for logging in this package.
-var rolelog = logf.Log.WithName("role-resource")
+var rolelog = logf.Log.WithName("databaserole-resource")
 
-// SetupRoleWebhookWithManager sets up the Role webhook with the Manager.
-func SetupRoleWebhookWithManager(mgr ctrl.Manager) error {
+// SetupDatabaseRoleWebhookWithManager sets up the DatabaseRole webhook with the Manager.
+func SetupDatabaseRoleWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(&dbv1.DatabaseRole{}).
-		WithValidator(&RoleWebhook{Client: mgr.GetClient()}).
+		WithValidator(&DatabaseRoleWebhook{Client: mgr.GetClient()}).
 		Complete()
 }
 
-//+kubebuilder:webhook:path=/validate-db-fatiudeen-dev-v1-role,mutating=false,failurePolicy=fail,sideEffects=None,groups=db.fatiudeen.dev,resources=roles,verbs=create;update,versions=v1,name=vrole.kb.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/validate-db-fatiudeen-dev-v1-databaserole,mutating=false,failurePolicy=fail,sideEffects=None,groups=db.fatiudeen.dev,resources=databaseroles,verbs=create;update,versions=v1,name=vdatabaserole.kb.io,admissionReviewVersions=v1
 
-// RoleWebhook validates Role resources
-type RoleWebhook struct {
+// DatabaseRoleWebhook validates DatabaseRole resources
+type DatabaseRoleWebhook struct {
 	Client client.Client
 }
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (r *RoleWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+func (r *DatabaseRoleWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
 	role, ok := obj.(*dbv1.DatabaseRole)
 	if !ok {
 		return nil, fmt.Errorf("expected a Role but got a %T", obj)
@@ -96,7 +96,7 @@ func (r *RoleWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (a
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *RoleWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
+func (r *DatabaseRoleWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
 	oldRole, ok := oldObj.(*dbv1.DatabaseRole)
 	if !ok {
 		return nil, fmt.Errorf("expected a Role but got a %T", oldObj)
@@ -151,7 +151,7 @@ func (r *RoleWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj runtime
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (r *RoleWebhook) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+func (r *DatabaseRoleWebhook) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
 	role, ok := obj.(*dbv1.DatabaseRole)
 	if !ok {
 		return nil, fmt.Errorf("expected a Role but got a %T", obj)
@@ -173,7 +173,7 @@ func (r *RoleWebhook) ValidateDelete(ctx context.Context, obj runtime.Object) (a
 }
 
 // validateRoleName validates the role name
-func (r *RoleWebhook) validateRoleName(name string) error {
+func (r *DatabaseRoleWebhook) validateRoleName(name string) error {
 	if name == "" {
 		return fmt.Errorf("role name cannot be empty")
 	}
@@ -212,7 +212,7 @@ func (r *RoleWebhook) validateRoleName(name string) error {
 }
 
 // validatePrivileges validates the privileges list
-func (r *RoleWebhook) validatePrivileges(privileges []string) error {
+func (r *DatabaseRoleWebhook) validatePrivileges(privileges []string) error {
 	if len(privileges) == 0 {
 		return nil // Privileges are optional
 	}
@@ -281,7 +281,7 @@ func (r *RoleWebhook) validatePrivileges(privileges []string) error {
 }
 
 // validateDatastoreExists validates that the referenced datastore exists
-func (r *RoleWebhook) validateDatastoreExists(ctx context.Context, role *dbv1.DatabaseRole) error {
+func (r *DatabaseRoleWebhook) validateDatastoreExists(ctx context.Context, role *dbv1.DatabaseRole) error {
 	var datastore dbv1.Datastore
 	key := client.ObjectKey{
 		Namespace: role.Namespace,
@@ -294,7 +294,7 @@ func (r *RoleWebhook) validateDatastoreExists(ctx context.Context, role *dbv1.Da
 }
 
 // validateDatabaseExists validates that the referenced database exists
-func (r *RoleWebhook) validateDatabaseExists(ctx context.Context, role *dbv1.DatabaseRole) error {
+func (r *DatabaseRoleWebhook) validateDatabaseExists(ctx context.Context, role *dbv1.DatabaseRole) error {
 	var database dbv1.Database
 	key := client.ObjectKey{
 		Namespace: role.Namespace,
@@ -307,7 +307,7 @@ func (r *RoleWebhook) validateDatabaseExists(ctx context.Context, role *dbv1.Dat
 }
 
 // findUsersUsingRole finds users that are using the specified role
-func (r *RoleWebhook) findUsersUsingRole(ctx context.Context, role *dbv1.DatabaseRole) ([]string, error) {
+func (r *DatabaseRoleWebhook) findUsersUsingRole(ctx context.Context, role *dbv1.DatabaseRole) ([]string, error) {
 	var userList dbv1.UserList
 	if err := r.Client.List(ctx, &userList, client.InNamespace(role.Namespace)); err != nil {
 		return nil, err

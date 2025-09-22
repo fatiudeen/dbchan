@@ -152,11 +152,11 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Datastore")
 		os.Exit(1)
 	}
-	if err = (&controller.RoleReconciler{
+	if err = (&controller.DatabaseRoleReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Role")
+		setupLog.Error(err, "unable to create controller", "controller", "DatabaseRole")
 		os.Exit(1)
 	}
 	if err = (&webhookpkg.DatastoreWebhook{
@@ -180,8 +180,8 @@ func main() {
 		setupLog.Error(err, "unable to create webhook", "webhook", "User")
 		os.Exit(1)
 	}
-	if err = webhookpkg.SetupRoleWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Role")
+	if err = webhookpkg.SetupDatabaseRoleWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "DatabaseRole")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
