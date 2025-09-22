@@ -54,7 +54,7 @@ func (r *RoleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	logger.Info("Reconciling Role", "name", req.Name, "namespace", req.Namespace)
 
 	// Fetch the Role instance
-	var role dbv1.Role
+	var role dbv1.DatabaseRole
 	if err := r.Get(ctx, req.NamespacedName, &role); err != nil {
 		logger.Error(err, "unable to fetch Role")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -137,7 +137,7 @@ func (r *RoleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 }
 
 // handleDeletion handles the deletion of a Role
-func (r *RoleReconciler) handleDeletion(ctx context.Context, role *dbv1.Role) (ctrl.Result, error) {
+func (r *RoleReconciler) handleDeletion(ctx context.Context, role *dbv1.DatabaseRole) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
 	// Get the referenced Datastore
@@ -180,7 +180,7 @@ func (r *RoleReconciler) handleDeletion(ctx context.Context, role *dbv1.Role) (c
 }
 
 // createOrUpdateRole creates or updates a role in the database
-func (r *RoleReconciler) createOrUpdateRole(ctx context.Context, role *dbv1.Role, datastore *dbv1.Datastore, database *dbv1.Database, secret *corev1.Secret) error {
+func (r *RoleReconciler) createOrUpdateRole(ctx context.Context, role *dbv1.DatabaseRole, datastore *dbv1.Datastore, database *dbv1.Database, secret *corev1.Secret) error {
 	logger := log.FromContext(ctx)
 
 	// Build connection string
@@ -217,7 +217,7 @@ func (r *RoleReconciler) createOrUpdateRole(ctx context.Context, role *dbv1.Role
 }
 
 // createOrUpdateMySQLRole creates or updates a role in MySQL/MariaDB
-func (r *RoleReconciler) createOrUpdateMySQLRole(ctx context.Context, role *dbv1.Role, database *dbv1.Database, db *sql.DB, logger logr.Logger) error {
+func (r *RoleReconciler) createOrUpdateMySQLRole(ctx context.Context, role *dbv1.DatabaseRole, database *dbv1.Database, db *sql.DB, logger logr.Logger) error {
 	// Create the role
 	createRoleSQL := fmt.Sprintf("CREATE ROLE IF NOT EXISTS '%s'", role.Name)
 	if _, err := db.ExecContext(ctx, createRoleSQL); err != nil {
@@ -253,7 +253,7 @@ func (r *RoleReconciler) createOrUpdateMySQLRole(ctx context.Context, role *dbv1
 }
 
 // createOrUpdatePostgreSQLRole creates or updates a role in PostgreSQL
-func (r *RoleReconciler) createOrUpdatePostgreSQLRole(ctx context.Context, role *dbv1.Role, database *dbv1.Database, db *sql.DB, logger logr.Logger) error {
+func (r *RoleReconciler) createOrUpdatePostgreSQLRole(ctx context.Context, role *dbv1.DatabaseRole, database *dbv1.Database, db *sql.DB, logger logr.Logger) error {
 	// Create the role
 	createRoleSQL := fmt.Sprintf("CREATE ROLE %s", role.Name)
 	if _, err := db.ExecContext(ctx, createRoleSQL); err != nil {
@@ -288,7 +288,7 @@ func (r *RoleReconciler) createOrUpdatePostgreSQLRole(ctx context.Context, role 
 }
 
 // createOrUpdateSQLServerRole creates or updates a role in SQL Server
-func (r *RoleReconciler) createOrUpdateSQLServerRole(ctx context.Context, role *dbv1.Role, database *dbv1.Database, db *sql.DB, logger logr.Logger) error {
+func (r *RoleReconciler) createOrUpdateSQLServerRole(ctx context.Context, role *dbv1.DatabaseRole, database *dbv1.Database, db *sql.DB, logger logr.Logger) error {
 	// Create the role
 	createRoleSQL := fmt.Sprintf("CREATE ROLE [%s]", role.Name)
 	if _, err := db.ExecContext(ctx, createRoleSQL); err != nil {
@@ -323,7 +323,7 @@ func (r *RoleReconciler) createOrUpdateSQLServerRole(ctx context.Context, role *
 }
 
 // deleteRole deletes a role from the database
-func (r *RoleReconciler) deleteRole(ctx context.Context, role *dbv1.Role, datastore *dbv1.Datastore, secret *corev1.Secret) error {
+func (r *RoleReconciler) deleteRole(ctx context.Context, role *dbv1.DatabaseRole, datastore *dbv1.Datastore, secret *corev1.Secret) error {
 	logger := log.FromContext(ctx)
 
 	// Build connection string
@@ -376,7 +376,7 @@ func (r *RoleReconciler) deleteRole(ctx context.Context, role *dbv1.Role, datast
 }
 
 // updateRoleStatus updates the status of a Role
-func (r *RoleReconciler) updateRoleStatus(ctx context.Context, role *dbv1.Role, phase string, ready, created bool, message string) (ctrl.Result, error) {
+func (r *RoleReconciler) updateRoleStatus(ctx context.Context, role *dbv1.DatabaseRole, phase string, ready, created bool, message string) (ctrl.Result, error) {
 	now := metav1.Now()
 	role.Status.Phase = phase
 	role.Status.Ready = ready
@@ -394,7 +394,7 @@ func (r *RoleReconciler) updateRoleStatus(ctx context.Context, role *dbv1.Role, 
 // SetupWithManager sets up the controller with the Manager.
 func (r *RoleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&dbv1.Role{}).
+		For(&dbv1.DatabaseRole{}).
 		Complete(r)
 }
 
