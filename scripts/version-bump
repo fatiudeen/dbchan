@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Convenience wrapper for version bumping
+# This script provides shorter commands for common version bump operations
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BUMP_SCRIPT="$SCRIPT_DIR/bump-version.sh"
+
+# Show usage if no arguments
+if [ $# -eq 0 ]; then
+    echo "Version Bump Helper"
+    echo "=================="
+    echo ""
+    echo "Quick commands:"
+    echo "  $0 patch     - Bump both versions (patch)"
+    echo "  $0 minor     - Bump both versions (minor)"
+    echo "  $0 major     - Bump both versions (major)"
+    echo ""
+    echo "Specific targets:"
+    echo "  $0 chart patch    - Bump only chart version (patch)"
+    echo "  $0 app minor      - Bump only app version (minor)"
+    echo "  $0 both major     - Bump both versions (major)"
+    echo ""
+    echo "For full options, run: $BUMP_SCRIPT"
+    exit 0
+fi
+
+# If only one argument, assume it's a bump type for both versions
+if [ $# -eq 1 ]; then
+    exec "$BUMP_SCRIPT" both "$1"
+else
+    exec "$BUMP_SCRIPT" "$@"
+fi
