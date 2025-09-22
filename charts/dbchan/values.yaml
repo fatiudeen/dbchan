@@ -10,8 +10,8 @@ controllerManager:
         drop:
         - ALL
     image:
-      repository: dbchan
-      tag: latest
+      repository: fatiudeen/dbchan
+      tag: v2
     resources:
       limits:
         cpu: 500m
