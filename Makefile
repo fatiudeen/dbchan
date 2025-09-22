@@ -1,5 +1,6 @@
 # Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+TAG ?= latest
+IMG ?= fatiudeen/dbchan:${TAG}
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.30.0
 
@@ -124,7 +125,7 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	$(KUSTOMIZE) build config/default > charts/dbchan/templates/all.yaml
 
 .PHONY: build-all
-build-all: generate manifests build-installer ## Run generate, manifests, and build-installer in sequence.
+build-all: generate manifests helm ## Run generate, manifests, and build-installer in sequence.
 
 ##@ Deployment
 
